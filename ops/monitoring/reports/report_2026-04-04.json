@@ -1,0 +1,23 @@
+{
+  "date": "2026-04-04",
+  "timestamp": "2026-04-04 10:52 JST",
+  "store": "HD Toys Store Japan",
+  "findings": [
+    {
+      "type": "info",
+      "message": "Active: 40件 / Draft: 60件"
+    },
+    {
+      "type": "info",
+      "message": "Product Type 未設定/Other: 4件"
+    },
+    {
+      "type": "ok",
+      "message": "未処理注文: なし"
+    },
+    {
+      "type": "ok",
+      "message": "画像 alt text: 全161枚設定済み"
+    }
+  ]
+}

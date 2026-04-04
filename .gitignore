@@ -1,0 +1,14 @@
+# 認証情報・機密ファイル
+.env
+.ebay_token.json
+.shopify_token.json
+*.token
+*.secret
+docs/pre-launch-preparation.md
+
+# 移行データ（個人情報を含む可能性がある）
+product-migration/data/
+
+# Python
+__pycache__/
+*.pyc
