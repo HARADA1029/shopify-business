@@ -1,0 +1,77 @@
+{
+  "_comment": "外部導線の状態管理ファイル。日次点検スクリプトが参照する。手動で更新する。",
+
+  "hd_bodyscience": {
+    "url": "https://hd-bodyscience.com/",
+    "platform": "WordPress (Cocoon)",
+    "shopify_store_url": "https://hd-toys-store-japan.myshopify.com",
+    "checks": {
+      "sidebar_banner": true,
+      "header_nav_link": true,
+      "footer_link": true,
+      "article_cta": true,
+      "shopify_buy_button": false
+    },
+    "notes": "2026-04-05: サイドバーバナー・ヘッダーナビ・フッターリンクを設置完了。記事CTA・Buy Buttonは未実装"
+  },
+
+  "ebay_sns": {
+    "_constraint": "eBay 用 SNS は投稿に使わない。プロフィールリンクに Shopify URL を設置するのは可。",
+    "accounts": {
+      "instagram": {
+        "url": "https://www.instagram.com/hdstore777/",
+        "shopify_url_in_profile": false,
+        "last_checked": "2026-04-05",
+        "notes": "SPA のため自動チェック不可。手動確認が必要"
+      },
+      "facebook": {
+        "url": "https://www.facebook.com/hdstore111",
+        "shopify_url_in_profile": false,
+        "last_checked": "2026-04-05",
+        "notes": "SPA のため自動チェック不可。手動確認が必要"
+      },
+      "pinterest": {
+        "url": "https://jp.pinterest.com/hdstore777",
+        "shopify_url_in_profile": false,
+        "last_checked": "2026-04-05",
+        "notes": "SPA のため自動チェック不可。手動確認が必要"
+      }
+    }
+  },
+
+  "shopify_sns": {
+    "_policy": "Shopify 専用アカウント。Shopify 集客用の投稿はこちらで行う。",
+    "accounts": {
+      "instagram": {
+        "created": false,
+        "username": "",
+        "url": "",
+        "notes": "未作成"
+      },
+      "x_twitter": {
+        "created": false,
+        "username": "",
+        "url": "",
+        "notes": "未作成"
+      },
+      "tiktok": {
+        "created": false,
+        "username": "",
+        "url": "",
+        "notes": "未作成"
+      },
+      "youtube": {
+        "created": false,
+        "username": "",
+        "url": "",
+        "notes": "未作成"
+      },
+      "pinterest": {
+        "created": false,
+        "username": "",
+        "url": "",
+        "notes": "未作成。eBay 用 hdstore777 とは別アカウント"
+      }
+    }
+  }
+}

@@ -2,6 +2,7 @@
 .env
 .ebay_token.json
 .shopify_token.json
+.gcp_service_account.json
 *.token
 *.secret
 docs/pre-launch-preparation.md
