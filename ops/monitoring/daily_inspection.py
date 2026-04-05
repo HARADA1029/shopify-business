@@ -367,19 +367,19 @@ def inspect_catalog(products):
             "message": f"Description 100文字未満: {len(short_desc)}件 → SEO と購買判断に影響",
         })
 
-    # --- 改善提案: Goods & Accessories Collection 新設判定 ---
+    # --- 改善提案: Goods & Accessories Collection 状況 ---
     ga_products = [
         p for p in products if p.get("product_type") == "Goods & Accessories"
     ]
-    if len(ga_products) >= 7:
+    if ga_products and len(ga_products) >= 7:
         findings.append({
             "type": "suggestion", "agent": "catalog-migration-planner",
-            "message": f"Goods & Accessories が {len(ga_products)}件 → Collection 新設を推奨",
+            "message": f"Goods & Accessories: {len(ga_products)}件 → メインメニューへの追加を推奨",
         })
     elif ga_products:
         findings.append({
-            "type": "medium_term", "agent": "catalog-migration-planner",
-            "message": f"Goods & Accessories: {len(ga_products)}件（7件以上で Collection 新設を検討）",
+            "type": "info", "agent": "catalog-migration-planner",
+            "message": f"Goods & Accessories: {len(ga_products)}件（Collection 作成済み。7件以上でメニュー追加を検討）",
         })
 
     return findings
