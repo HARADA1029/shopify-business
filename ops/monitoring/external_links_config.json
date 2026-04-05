@@ -20,9 +20,9 @@
     "accounts": {
       "instagram": {
         "url": "https://www.instagram.com/hdstore777/",
-        "shopify_url_in_profile": false,
-        "last_checked": "2026-04-05",
-        "notes": "SPA のため自動チェック不可。手動確認が必要"
+        "shopify_url_in_profile": true,
+        "last_checked": "2026-04-06",
+        "notes": "Linktree 経由で Shopify リンク設置済み (https://linktr.ee/hdstore777)"
       },
       "facebook": {
         "url": "https://www.facebook.com/hdstore111",
