@@ -22,8 +22,12 @@ jobs:
         run: pip install requests google-analytics-data google-api-python-client google-auth
 
       - name: Setup GCP credentials
-        if: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY != '' }}
-        run: echo '${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}' > .gcp_service_account.json
+        env:
+          GCP_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+        run: |
+          if [ -n "$GCP_KEY" ]; then
+            echo "$GCP_KEY" > .gcp_service_account.json
+          fi
 
       - name: Run daily inspection
         env:
