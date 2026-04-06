@@ -40,6 +40,12 @@ jobs:
           SHOPIFY_STORE: ${{ secrets.SHOPIFY_STORE }}
         run: python store/scripts/facebook_auto_post.py
 
+      - name: Run video auto post (Mon/Thu only)
+        env:
+          SHOPIFY_STORE: ${{ secrets.SHOPIFY_STORE }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python store/scripts/video_auto_post.py
+
       - name: Commit posted list
         run: |
           git config user.name "github-actions[bot]"
