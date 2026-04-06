@@ -413,6 +413,36 @@ def main():
             "video_id": fb_result.get("video_id", ""),
         })
 
+    # Instagram Reels に動画投稿
+    # 動画を一時的に公開URLでホスティングする必要がある
+    # Shopify Files API 経由でアップロード
+    print()
+    print("[INFO] Uploading video for Instagram Reels...")
+    video_url = upload_video_to_hosting(video_bytes)
+
+    if video_url:
+        ig_caption = (
+            "%s\n\n"
+            "Pre-owned, inspected & shipped from Japan\n\n"
+            "Link in bio to shop!\n\n"
+            "#japanesecollectibles #japantoys #hdtoysjapan #shippedfromjapan"
+        ) % title
+
+        print("[INFO] Posting to Instagram Reels...")
+        ig_result = post_video_to_instagram(ig_tokens, video_url, ig_caption)
+
+        if ig_result:
+            posted_data.setdefault("history", []).append({
+                "date": today_str,
+                "handle": handle,
+                "title": title[:80],
+                "category": category,
+                "platform": "instagram_reels",
+                "media_id": ig_result.get("media_id", ""),
+            })
+    else:
+        print("[SKIP] Instagram Reels: video hosting failed, skipping")
+
     # 一時ファイル削除
     try:
         os.remove(temp_path)
