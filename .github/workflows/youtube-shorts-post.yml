@@ -1,0 +1,63 @@
+name: YouTube Shorts Daily Post
+
+on:
+  schedule:
+    - cron: '0 23 * * *'  # UTC 23:00 = JST 08:00 (画像の12時間後, 動画の6時間後)
+  workflow_dispatch: {}
+
+jobs:
+  youtube-post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install requests python-dotenv
+
+      - name: Setup credentials
+        run: |
+          python store/scripts/setup_ci_credentials.py
+        env:
+          SHOPIFY_TOKEN: ${{ secrets.SHOPIFY_ACCESS_TOKEN }}
+          IG_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
+          IG_PAGE_TOKEN: ${{ secrets.INSTAGRAM_PAGE_TOKEN }}
+          IG_USER_ID: ${{ secrets.INSTAGRAM_USER_ID }}
+
+      - name: Setup YouTube token
+        env:
+          YT_ACCESS_TOKEN: ${{ secrets.YOUTUBE_ACCESS_TOKEN }}
+          YT_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+          YT_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+        run: |
+          python -c "
+          import json,os
+          data={'access_token':os.environ['YT_ACCESS_TOKEN'],'refresh_token':os.environ['YT_REFRESH_TOKEN']}
+          json.dump(data,open('.youtube_token.json','w'))
+          print('OK')
+          "
+
+      - name: Run YouTube Shorts auto post
+        env:
+          SHOPIFY_STORE: ${{ secrets.SHOPIFY_STORE }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+        run: python store/scripts/youtube_auto_post.py
+
+      - name: Commit posted list
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f ops/monitoring/sns_posted.json || true
+          git diff --cached --quiet || git commit -m "Update SNS posted list (youtube) [auto]"
+          git push || true
+
+      - name: Cleanup credentials
+        if: always()
+        run: rm -f .shopify_token.json .instagram_token.json .youtube_token.json
