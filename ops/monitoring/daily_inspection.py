@@ -1560,6 +1560,228 @@ def suggest_internal_links(wp_posts, wp_categories):
     return findings
 
 
+def suggest_shopify_candidates(products):
+    """Shopify 追加候補: eBay 在庫から Shopify 展開すべき商品を提案
+
+    Shopify で人気のカテゴリ（Active 商品が多いカテゴリ）に近い
+    eBay 在庫で、まだ Shopify に連携していない商品を候補として出す。
+    """
+    findings = []
+
+    # eBay の在庫データを読み込み
+    ebay_csv = os.path.join(
+        os.path.dirname(SCRIPT_DIR), os.pardir,
+        "product-migration", "data", "active_listings_target.csv"
+    )
+    ebay_csv = os.path.abspath(ebay_csv)
+
+    if not os.path.exists(ebay_csv):
+        return findings
+
+    import csv
+    try:
+        with open(ebay_csv, "r", encoding="utf-8-sig") as f:
+            ebay_rows = list(csv.DictReader(f))
+    except Exception:
+        return findings
+
+    if not ebay_rows or not products:
+        return findings
+
+    # Shopify 済みの item_id セット
+    shopify_item_ids = set()
+    for p in products:
+        for v in p.get("variants", []):
+            sku = v.get("sku", "")
+            if sku.startswith("EB-"):
+                shopify_item_ids.add(sku[3:])
+
+    # Shopify で Active が多いカテゴリのキーワード
+    from collections import Counter
+    cat_counts = Counter(p.get("product_type", "") for p in products)
+    top_categories = [cat for cat, _ in cat_counts.most_common(5) if cat]
+
+    # カテゴリ -> タイトルキーワードマッピング
+    category_keywords = {
+        "Scale Figures": ["figure", "nendoroid", "banpresto", "ichiban kuji", "scale", "pvc"],
+        "Action Figures": ["figma", "figuarts", "action figure", "mafex", "revoltech", "beyblade"],
+        "Trading Cards": ["card", "pokemon card", "tcg", "trading card", "yu-gi-oh"],
+        "Video Games": ["game", "playstation", "nintendo", "console", "gameboy", "ps3", "psp"],
+        "Electronic Toys": ["tamagotchi", "digital pet"],
+        "Media & Books": ["manga", "art book", "blu-ray", "dvd", "comic", "complete set"],
+        "Plush & Soft Toys": ["plush", "stuffed", "mascot", "doll"],
+    }
+
+    # eBay からカテゴリ別に未連携商品を抽出
+    candidates_by_cat = {}
+    for row in ebay_rows:
+        item_id = row.get("item_id", "")
+        if item_id in shopify_item_ids:
+            continue
+        title = row.get("title", "").lower()
+        price = row.get("price", "0")
+        try:
+            price_f = float(price)
+        except ValueError:
+            price_f = 0
+
+        for cat, keywords in category_keywords.items():
+            if cat not in top_categories:
+                continue
+            if any(kw in title for kw in keywords):
+                if cat not in candidates_by_cat:
+                    candidates_by_cat[cat] = []
+                candidates_by_cat[cat].append({
+                    "item_id": item_id,
+                    "title": row.get("title", "")[:55],
+                    "price": price,
+                })
+                break
+
+    if candidates_by_cat:
+        details = []
+        shown = 0
+        for cat in top_categories:
+            if cat not in candidates_by_cat or shown >= 3:
+                break
+            items = candidates_by_cat[cat][:1]
+            for item in items:
+                details.append(
+                    "[%s] %s ($%s)" % (cat, item["title"], item["price"])
+                )
+                shown += 1
+
+        if details:
+            total = sum(len(v) for v in candidates_by_cat.values())
+            findings.append({
+                "type": "action", "agent": "catalog-migration-planner",
+                "message": "Shopify expansion candidates: %d eBay items match top Shopify categories" % total,
+                "details": details,
+            })
+
+    return findings
+
+
+def suggest_article_candidates(products, wp_posts):
+    """記事化候補: Shopify 商品のうち、まだ hd-bodyscience.com に記事がないものを提案"""
+    findings = []
+
+    if not products or not wp_posts:
+        return findings
+
+    # WP 記事タイトルのキーワードセット
+    wp_title_words = set()
+    for p in wp_posts:
+        title = p.get("title", {})
+        if isinstance(title, dict):
+            title = title.get("rendered", "")
+        words = title.lower().split()
+        wp_title_words.update(w for w in words if len(w) > 3)
+
+    # Shopify 商品で WP 記事にカバーされていないもの
+    uncovered = []
+    for p in products:
+        title = p["title"]
+        title_lower = title.lower()
+        # タイトルの主要単語が WP 記事に含まれるか簡易チェック
+        title_words = [w for w in title_lower.split() if len(w) > 4]
+        match_count = sum(1 for w in title_words if w in wp_title_words)
+        coverage = match_count / max(len(title_words), 1)
+
+        if coverage < 0.3:  # 30% 未満のマッチ = 未カバー
+            uncovered.append({
+                "title": title[:55],
+                "type": p.get("product_type", ""),
+                "coverage": coverage,
+            })
+
+    if uncovered:
+        # カテゴリごとに1件ずつ、最大2件
+        seen_cats = set()
+        details = []
+        for item in uncovered:
+            cat = item["type"]
+            if cat in seen_cats:
+                continue
+            seen_cats.add(cat)
+            details.append(
+                "[%s] %s" % (cat, item["title"])
+            )
+            if len(details) >= 2:
+                break
+
+        if details:
+            findings.append({
+                "type": "action", "agent": "growth-foundation",
+                "message": "Article candidates: %d Shopify products not yet covered by blog articles" % len(uncovered),
+                "details": details,
+            })
+
+    return findings
+
+
+def suggest_weekly_focus(products, wp_posts, wp_categories):
+    """今週の重点カテゴリ: Shopify在庫 x 記事数 x 検索データから1カテゴリを推奨"""
+    findings = []
+
+    if not products:
+        return findings
+
+    from collections import Counter
+    import hashlib
+
+    # Shopify のカテゴリ別商品数
+    cat_counts = Counter(p.get("product_type", "") for p in products if p.get("product_type"))
+
+    # WP のカテゴリ別記事数
+    wp_cat_counts = {}
+    if wp_categories:
+        collection_to_wp = {
+            "Scale Figures": ["figure"],
+            "Action Figures": ["figure"],
+            "Trading Cards": ["trading-card", "tcg-trading-card-game-collectable-card"],
+            "Video Games": ["video-game"],
+            "Electronic Toys": ["tamagotchi"],
+            "Media & Books": ["book-magazine", "comic", "art-book-illustration", "dvd-blu-ray-ld"],
+            "Plush & Soft Toys": ["stuffed-toy-plush-doll-mascot"],
+        }
+        slug_counts = {c.get("slug", ""): c.get("count", 0) for c in wp_categories}
+        for collection, slugs in collection_to_wp.items():
+            wp_cat_counts[collection] = sum(slug_counts.get(s, 0) for s in slugs)
+
+    # スコアリング: 商品数が多く、記事カバレッジが低いカテゴリを優先
+    scores = []
+    for cat, product_count in cat_counts.most_common():
+        wp_count = wp_cat_counts.get(cat, 0)
+        gap = product_count - wp_count
+        score = gap * 2 + product_count  # ギャップを重視
+        scores.append({
+            "category": cat,
+            "shopify_products": product_count,
+            "wp_articles": wp_count,
+            "score": score,
+        })
+
+    scores.sort(key=lambda x: -x["score"])
+
+    # 毎週同じカテゴリにならないよう、週番号でローテーション
+    week_num = NOW.isocalendar()[1]
+    if scores:
+        idx = week_num % len(scores)
+        focus = scores[idx]
+
+        findings.append({
+            "type": "action", "agent": "growth-foundation",
+            "message": "Weekly focus: %s" % focus["category"],
+            "details": [
+                "Shopify products: %d | Blog articles: %d" % (focus["shopify_products"], focus["wp_articles"]),
+                "Priority: Write articles, create SNS posts, and strengthen CTAs for this category this week",
+            ],
+        })
+
+    return findings
+
+
 # ============================================================
 # レポート生成
 # ============================================================
@@ -1938,6 +2160,9 @@ def main():
     all_findings.extend(suggest_article_themes(products, wp_posts_data, wp_categories_data))
     all_findings.extend(suggest_sns_posts(products, wp_posts_data))
     all_findings.extend(suggest_internal_links(wp_posts_data, wp_categories_data))
+    all_findings.extend(suggest_shopify_candidates(products))
+    all_findings.extend(suggest_article_candidates(products, wp_posts_data))
+    all_findings.extend(suggest_weekly_focus(products, wp_posts_data, wp_categories_data))
 
     print()
 
