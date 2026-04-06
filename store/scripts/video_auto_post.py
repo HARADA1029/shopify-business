@@ -36,8 +36,8 @@ POSTED_FILE = os.path.join(PROJECT_ROOT, "ops", "monitoring", "sns_posted.json")
 JST = timezone(timedelta(hours=9))
 NOW = datetime.now(JST)
 
-# 動画投稿する曜日（0=月, 3=木）
-VIDEO_DAYS = [0, 3]
+# 動画投稿する曜日（毎日）
+VIDEO_DAYS = [0, 1, 2, 3, 4, 5, 6]
 
 # カテゴリ別の動画プロンプトテンプレート
 VIDEO_PROMPTS = {

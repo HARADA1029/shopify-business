@@ -1,16 +1,17 @@
-name: SNS Daily Auto Post
+name: SNS Daily Video Post
 
 on:
   schedule:
-    - cron: '0 11 * * *'
+    - cron: '0 17 * * *'  # UTC 17:00 = JST 02:00 (画像投稿の6時間後)
   workflow_dispatch: {}
 
 env:
   SHOPIFY_API_VERSION: '2026-04'
 
 jobs:
-  post:
+  video-post:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -30,24 +31,18 @@ jobs:
           IG_PAGE_TOKEN: ${{ secrets.INSTAGRAM_PAGE_TOKEN }}
           IG_USER_ID: ${{ secrets.INSTAGRAM_USER_ID }}
 
-      - name: Run Instagram auto post
+      - name: Run video auto post
         env:
           SHOPIFY_STORE: ${{ secrets.SHOPIFY_STORE }}
-        run: python store/scripts/instagram_auto_post.py
-
-      - name: Run Facebook auto post
-        env:
-          SHOPIFY_STORE: ${{ secrets.SHOPIFY_STORE }}
-        run: python store/scripts/facebook_auto_post.py
-
-      # 動画投稿は別ワークフロー（6時間後）で実行
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python store/scripts/video_auto_post.py
 
       - name: Commit posted list
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -f ops/monitoring/sns_posted.json || true
-          git diff --cached --quiet || git commit -m "Update SNS posted list [auto]"
+          git diff --cached --quiet || git commit -m "Update SNS posted list (video) [auto]"
           git push || true
 
       - name: Cleanup credentials
