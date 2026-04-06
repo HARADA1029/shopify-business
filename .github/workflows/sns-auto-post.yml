@@ -2,7 +2,7 @@ name: SNS Daily Auto Post
 
 on:
   schedule:
-    - cron: '0 11 * * *'  # UTC 11:00 = JST 20:00
+    - cron: '0 11 * * *'
   workflow_dispatch: {}
 
 env:
@@ -22,12 +22,13 @@ jobs:
         run: pip install requests python-dotenv
 
       - name: Setup credentials
+        run: |
+          python store/scripts/setup_ci_credentials.py
         env:
           SHOPIFY_TOKEN: ${{ secrets.SHOPIFY_ACCESS_TOKEN }}
           IG_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
           IG_PAGE_TOKEN: ${{ secrets.INSTAGRAM_PAGE_TOKEN }}
           IG_USER_ID: ${{ secrets.INSTAGRAM_USER_ID }}
-        run: python -c "import json,os;json.dump({'access_token':os.environ['SHOPIFY_TOKEN']},open('.shopify_token.json','w'));json.dump({'access_token':os.environ['IG_ACCESS_TOKEN'],'page_access_token':os.environ['IG_PAGE_TOKEN'],'ig_user_id':os.environ['IG_USER_ID'],'page_id':'979402688599458','page_name':'HD Toys Store Japan','token_type':'long_lived'},open('.instagram_token.json','w'));print('OK: IG user',os.environ['IG_USER_ID'])"
 
       - name: Run Instagram auto post
         env:
