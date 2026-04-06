@@ -1301,6 +1301,266 @@ def inspect_search_console():
 
 
 # ============================================================
+# アクション提案: 記事テーマ / SNS 投稿 / 内部リンク
+# ============================================================
+
+def suggest_article_themes(products, wp_posts, wp_categories):
+    """記事テーマ提案: Shopify 在庫 x WP 記事カバレッジのギャップ分析
+
+    Shopify に商品があるのに hd-bodyscience.com に関連記事がないカテゴリを特定し、
+    具体的な記事テーマを提案する。
+    """
+    findings = []
+
+    if not products or not wp_categories:
+        return findings
+
+    # Shopify Collection -> WP カテゴリのマッピング
+    collection_to_wp_keywords = {
+        "Action Figures": ["figure", "bandai", "freeing", "good-smile", "medicom"],
+        "Scale Figures": ["figure", "nendoroid", "banpresto", "ichiban-kuji"],
+        "Trading Cards": ["trading-card", "tcg", "pokemon", "pokemon-pokemon"],
+        "Video Games": ["video-game", "playstation", "xbox", "psp"],
+        "Electronic Toys": ["tamagotchi"],
+        "Media & Books": ["book-magazine", "comic", "art-book", "dvd-blu-ray", "game-anime-sound-track"],
+        "Plush & Soft Toys": ["stuffed-toy-plush-doll-mascot", "sanrio"],
+        "Goods & Accessories": ["collectibles", "poster"],
+    }
+
+    # WP カテゴリ slug -> 記事数マップ
+    wp_cat_counts = {c.get("slug", ""): c.get("count", 0) for c in wp_categories}
+
+    # Shopify の各カテゴリの商品数
+    from collections import Counter
+    shopify_cat_counts = Counter(p.get("product_type", "") for p in products)
+
+    # ギャップ分析: Shopify に商品が多いが WP 記事が少ないカテゴリ
+    gaps = []
+    for collection, wp_slugs in collection_to_wp_keywords.items():
+        shopify_count = shopify_cat_counts.get(collection, 0)
+        if shopify_count == 0:
+            continue
+        wp_count = sum(wp_cat_counts.get(slug, 0) for slug in wp_slugs)
+        if shopify_count > wp_count:
+            gaps.append({
+                "collection": collection,
+                "shopify_products": shopify_count,
+                "wp_articles": wp_count,
+                "gap": shopify_count - wp_count,
+            })
+
+    gaps.sort(key=lambda x: -x["gap"])
+
+    if gaps:
+        # 上位2件を提案
+        details = []
+        for g in gaps[:2]:
+            # この Collection の具体的な商品名を取得
+            sample_products = [
+                p["title"][:45] for p in products
+                if p.get("product_type") == g["collection"]
+            ][:3]
+            theme_ideas = {
+                "Action Figures": "Top %d Action Figures from Japan Every Collector Needs" % min(5, g["shopify_products"]),
+                "Scale Figures": "Japanese Scale Figures: A Collector's Guide to Nendoroid, Banpresto & More",
+                "Trading Cards": "Rare Japanese Trading Cards: Pokemon, Yu-Gi-Oh! & Hidden Gems",
+                "Video Games": "Retro Japanese Games Worth Collecting in 2026",
+                "Electronic Toys": "%d Rare Tamagotchi Models Every Collector Should Know" % min(5, g["shopify_products"]),
+                "Media & Books": "Japanese Art Books & Manga Sets: A Collector's Guide",
+                "Plush & Soft Toys": "Cutest Japanese Plush Toys: Pokemon, Sanrio & Anime Characters",
+                "Goods & Accessories": "Unique Japanese Anime Goods & Cosplay Items",
+            }
+            theme = theme_ideas.get(g["collection"], "Guide to %s from Japan" % g["collection"])
+            details.append(
+                'Theme: "%s"' % theme
+            )
+            details.append(
+                "  Reason: Shopify has %d products but only %d articles on site" % (g["shopify_products"], g["wp_articles"])
+            )
+            details.append(
+                "  Products: %s" % ", ".join(sample_products)
+            )
+
+        findings.append({
+            "type": "action", "agent": "growth-foundation",
+            "message": "Article ideas: %d categories with more products than articles" % len(gaps),
+            "details": details,
+        })
+
+    return findings
+
+
+def suggest_sns_posts(products, wp_posts):
+    """SNS 投稿案: カテゴリローテーション x 未投稿商品
+
+    曜日ごとにカテゴリをローテーションし、具体的な商品 + 投稿テキスト案を提案する。
+    """
+    findings = []
+
+    if not products:
+        return findings
+
+    # 曜日ローテーション
+    day_of_week = NOW.weekday()  # 0=Mon, 6=Sun
+    rotation = [
+        "Action Figures",    # Mon
+        "Trading Cards",     # Tue
+        "Scale Figures",     # Wed
+        "Electronic Toys",   # Thu
+        "Video Games",       # Fri
+        "Media & Books",     # Sat
+        "Plush & Soft Toys", # Sun
+    ]
+    today_category = rotation[day_of_week]
+
+    # 投稿済みリストを読み込み（なければ空）
+    import os
+    posted_file = os.path.join(SCRIPT_DIR, "sns_posted.json")
+    posted_handles = set()
+    if os.path.exists(posted_file):
+        try:
+            with open(posted_file, "r", encoding="utf-8") as f:
+                posted_data = json.load(f)
+            posted_handles = set(posted_data.get("posted", []))
+        except (json.JSONDecodeError, IOError):
+            pass
+
+    # 今日のカテゴリの未投稿商品を取得
+    candidates = [
+        p for p in products
+        if p.get("product_type") == today_category
+        and p.get("handle", "") not in posted_handles
+    ]
+
+    # 候補がなければ他カテゴリから
+    if not candidates:
+        for cat in rotation:
+            if cat == today_category:
+                continue
+            candidates = [
+                p for p in products
+                if p.get("product_type") == cat
+                and p.get("handle", "") not in posted_handles
+            ]
+            if candidates:
+                today_category = cat
+                break
+
+    if candidates:
+        product = candidates[0]
+        handle = product.get("handle", "")
+        title = product["title"][:60]
+        images = product.get("images", [])
+        image_url = images[0].get("src", "") if images else ""
+
+        shopify_link = "https://hd-toys-store-japan.myshopify.com/products/%s" % handle
+
+        # Collection -> Pinterest ボード名
+        board_map = {
+            "Action Figures": "Action Figures",
+            "Scale Figures": "Figures & Statues",
+            "Trading Cards": "Trading Cards",
+            "Video Games": "Video Games",
+            "Electronic Toys": "Electronic Toys",
+            "Media & Books": "Media & Books",
+            "Plush & Soft Toys": "Plush & Soft Toys",
+            "Goods & Accessories": "Goods & Accessories",
+        }
+        board = board_map.get(today_category, today_category)
+
+        details = [
+            "Category: %s (today's rotation)" % today_category,
+            "Product: %s" % title,
+            "Pinterest: Pin to '%s' board" % board,
+            "Instagram: Product showcase image",
+            "Link: %s?utm_source=pinterest&utm_medium=social&utm_campaign=daily-pin&utm_content=%s" % (shopify_link, handle),
+        ]
+        if image_url:
+            details.append("Image: %s" % image_url[:80])
+
+        findings.append({
+            "type": "action", "agent": "growth-foundation",
+            "message": "SNS post idea: %s" % title,
+            "details": details,
+        })
+
+    return findings
+
+
+def suggest_internal_links(wp_posts, wp_categories):
+    """内部リンク追加案: 同カテゴリで相互リンクがない記事ペアを抽出
+
+    hd-bodyscience.com の記事間で、同じカテゴリに属しているのに
+    本文中で相互リンクしていないペアを見つけ、リンク追加を提案する。
+    """
+    findings = []
+
+    if not wp_posts or len(wp_posts) < 2:
+        return findings
+
+    # カテゴリ別に記事をグループ化
+    from collections import defaultdict
+    cat_posts = defaultdict(list)
+    for p in wp_posts:
+        for cat_id in p.get("categories", []):
+            cat_posts[cat_id].append(p)
+
+    # 同カテゴリの記事ペアでリンクがないものを探す
+    suggestions = []
+    checked = set()
+
+    for cat_id, posts in cat_posts.items():
+        if len(posts) < 2:
+            continue
+        for i, p1 in enumerate(posts):
+            for p2 in posts[i+1:]:
+                pair_key = tuple(sorted([p1["id"], p2["id"]]))
+                if pair_key in checked:
+                    continue
+                checked.add(pair_key)
+
+                # p1 の本文に p2 の URL が含まれるか（簡易チェック）
+                p1_content = (p1.get("content", {}).get("rendered", "") or "").lower()
+                p2_content = (p2.get("content", {}).get("rendered", "") or "").lower()
+                p1_link = p1.get("link", "")
+                p2_link = p2.get("link", "")
+
+                p1_has_p2 = p2_link.lower().rstrip("/") in p1_content if p2_link else True
+                p2_has_p1 = p1_link.lower().rstrip("/") in p2_content if p1_link else True
+
+                if not p1_has_p2 or not p2_has_p1:
+                    # カテゴリ名を取得
+                    cat_name = ""
+                    for c in wp_categories:
+                        if c.get("id") == cat_id:
+                            cat_name = c.get("name", "")
+                            break
+
+                    suggestions.append({
+                        "from": p1["title"]["rendered"][:40] if isinstance(p1["title"], dict) else str(p1["title"])[:40],
+                        "to": p2["title"]["rendered"][:40] if isinstance(p2["title"], dict) else str(p2["title"])[:40],
+                        "category": cat_name,
+                        "missing": "both" if not p1_has_p2 and not p2_has_p1 else "one-way",
+                    })
+
+    if suggestions:
+        # 上位3件を提案
+        details = []
+        for s in suggestions[:3]:
+            details.append(
+                '"%s" <-> "%s" [%s]' % (s["from"], s["to"], s["category"])
+            )
+
+        findings.append({
+            "type": "action", "agent": "growth-foundation",
+            "message": "Internal link opportunities: %d article pairs in same category without cross-links" % len(suggestions),
+            "details": details,
+        })
+
+    return findings
+
+
+# ============================================================
 # レポート生成
 # ============================================================
 
@@ -1311,7 +1571,8 @@ def classify_findings(all_findings):
     medium_term = [f for f in all_findings if f["type"] == "medium_term"]
     info = [f for f in all_findings if f["type"] == "info"]
     ok = [f for f in all_findings if f["type"] == "ok"]
-    return critical, suggestion, medium_term, info, ok
+    action = [f for f in all_findings if f["type"] == "action"]
+    return critical, suggestion, medium_term, info, ok, action
 
 
 def _format_finding_line(f, prefix=""):
@@ -1326,7 +1587,7 @@ def _format_finding_line(f, prefix=""):
 
 def generate_markdown_report(all_findings, store_info):
     """詳細 Markdown レポートを生成（改善提案型）"""
-    critical, suggestion, medium_term, info, ok = classify_findings(all_findings)
+    critical, suggestion, medium_term, info, ok, action = classify_findings(all_findings)
 
     lines = []
     lines.append("# HD Toys Store Japan 日次レポート")
@@ -1393,6 +1654,19 @@ def generate_markdown_report(all_findings, store_info):
         lines.append("- なし")
         lines.append("")
 
+    # 📝 今日のアクション提案
+    if action:
+        lines.append(f"## 📝 今日のアクション提案（{len(action)}件）")
+        lines.append("")
+        for f in action:
+            lines.extend(_format_finding_line(f))
+            lines.append("")
+    else:
+        lines.append("## 📝 今日のアクション提案（0件）")
+        lines.append("")
+        lines.append("- データ蓄積中")
+        lines.append("")
+
     # ✓ 異常なし
     lines.append(f"## ✓ 異常なし（{len(ok)}件）")
     lines.append("")
@@ -1445,7 +1719,7 @@ def generate_markdown_report(all_findings, store_info):
 
 def generate_chatwork_message(all_findings):
     """Chatwork 要約メッセージを生成（改善提案型）"""
-    critical, suggestion, medium_term, info, ok = classify_findings(all_findings)
+    critical, suggestion, medium_term, info, ok, action = classify_findings(all_findings)
 
     lines = []
     lines.append(
@@ -1483,6 +1757,13 @@ def generate_chatwork_message(all_findings):
             lines.append(f"  [{agent}] {f['message']}")
         if len(medium_term) > 3:
             lines.append(f"  ...他 {len(medium_term) - 3}件")
+
+    # 📝 アクション
+    if action:
+        lines.append("")
+        lines.append("📝 今日のアクション提案（%d件）" % len(action))
+        for f in action[:2]:
+            lines.append("  %s" % f["message"][:70])
 
     # ✓ 異常なし
     if not critical and not suggestion:
@@ -1631,6 +1912,33 @@ def main():
     print("[INFO] Search Console データ取得...")
     all_findings.extend(inspect_search_console())
 
+    # --- アクション提案 ---
+    print("[INFO] アクション提案を生成中...")
+    # WP API から記事とカテゴリを取得（アクション提案用）
+    wp_posts_data = []
+    wp_categories_data = []
+    try:
+        _wp_api = "https://hd-bodyscience.com/wp-json/wp/v2"
+        _wp_headers = {"User-Agent": "HD-Toys-Store-DailyInspection/1.0"}
+        _wp_resp = requests.get(
+            _wp_api + "/posts?per_page=20&_fields=id,title,date,link,categories,content",
+            headers=_wp_headers, timeout=15,
+        )
+        if _wp_resp.status_code == 200:
+            wp_posts_data = _wp_resp.json()
+        _wp_cat_resp = requests.get(
+            _wp_api + "/categories?per_page=100&_fields=id,name,slug,count",
+            headers=_wp_headers, timeout=15,
+        )
+        if _wp_cat_resp.status_code == 200:
+            wp_categories_data = _wp_cat_resp.json()
+    except Exception:
+        pass
+
+    all_findings.extend(suggest_article_themes(products, wp_posts_data, wp_categories_data))
+    all_findings.extend(suggest_sns_posts(products, wp_posts_data))
+    all_findings.extend(suggest_internal_links(wp_posts_data, wp_categories_data))
+
     print()
 
     # レポート生成
@@ -1660,10 +1968,11 @@ def main():
 
     # コンソールサマリ
     print()
-    critical, suggestion, medium_term, info, ok = classify_findings(all_findings)
+    critical, suggestion, medium_term, info, ok, action = classify_findings(all_findings)
     print(f"  🔴 要対応: {len(critical)}件")
     print(f"  🚀 売上改善: {len(suggestion)}件")
     print(f"  💡 中期改善: {len(medium_term)}件")
+    print(f"  📝 アクション: {len(action)}件")
     print(f"  ✓ 正常: {len(ok)}件")
 
 
