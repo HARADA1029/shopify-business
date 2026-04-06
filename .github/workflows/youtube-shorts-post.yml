@@ -2,7 +2,7 @@ name: YouTube Shorts Daily Post
 
 on:
   schedule:
-    - cron: '0 23 * * *'  # UTC 23:00 = JST 08:00 (画像の12時間後, 動画の6時間後)
+    - cron: '0 11 * * *'  # UTC 11:00 = JST 20:00 (画像投稿と同時、別プラットフォームのため)
   workflow_dispatch: {}
 
 jobs:
