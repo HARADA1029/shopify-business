@@ -3,7 +3,7 @@ name: SNS Daily Auto Post
 on:
   schedule:
     - cron: '0 11 * * *'  # UTC 11:00 = JST 20:00
-  workflow_dispatch: {}     # 手動実行も可能
+  workflow_dispatch: {}
 
 env:
   SHOPIFY_API_VERSION: '2026-04'
@@ -26,10 +26,15 @@ jobs:
           SHOPIFY_TOKEN: ${{ secrets.SHOPIFY_ACCESS_TOKEN }}
           IG_TOKEN: ${{ secrets.INSTAGRAM_TOKEN_JSON }}
         run: |
-          echo "{\"access_token\": \"$SHOPIFY_TOKEN\"}" > .shopify_token.json
-          cat <<'EOFTOKEN' > .instagram_token.json
-          ${{ secrets.INSTAGRAM_TOKEN_JSON }}
-          EOFTOKEN
+          python -c "
+          import json
+          import os
+          st = os.environ['SHOPIFY_TOKEN']
+          with open('.shopify_token.json','w') as f: json.dump({'access_token': st}, f)
+          ig = os.environ['IG_TOKEN']
+          with open('.instagram_token.json','w') as f: f.write(ig)
+          print('Credentials written')
+          "
 
       - name: Run Instagram auto post
         env:
