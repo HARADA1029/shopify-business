@@ -35,6 +35,11 @@ jobs:
           SHOPIFY_STORE: ${{ secrets.SHOPIFY_STORE }}
         run: python store/scripts/instagram_auto_post.py
 
+      - name: Run Facebook auto post
+        env:
+          SHOPIFY_STORE: ${{ secrets.SHOPIFY_STORE }}
+        run: python store/scripts/facebook_auto_post.py
+
       - name: Commit posted list
         run: |
           git config user.name "github-actions[bot]"
