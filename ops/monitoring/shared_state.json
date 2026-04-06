@@ -1,0 +1,31 @@
+{
+  "_comment": "エージェント間共有データ。daily_inspection.py と action_suggestions.py が読み書きする。",
+
+  "weekly_focus": {
+    "category": "Trading Cards",
+    "week": "2026-W14",
+    "set_by": "growth-foundation",
+    "reason": "SC で pokemon 関連の検索表示が増加。Shopify に Trading Cards Active が1件のみで不足",
+    "actions": {
+      "products_to_add": ["Pokemon Card Charizard Holo", "Pokemon Card Pikachu McDonalds", "Pokemon Post Card Munch"],
+      "articles_to_write": ["Top 5 Rare Pokemon Cards from Japan"],
+      "sns_posts": ["pokemon-lugia-legend", "pokemon-charizard-holo"],
+      "internal_links": [{"from_id": 4468, "to_id": 3932, "context": "Squirtle -> Charizard"}],
+      "cta_improvements": []
+    },
+    "results": {}
+  },
+
+  "active_experiments": [],
+
+  "scoring_weights": {
+    "sales_proximity": 3,
+    "ease_of_implementation": 2,
+    "data_evidence": 2,
+    "competitive_advantage": 1,
+    "focus_category_match": 2,
+    "past_success_rate": 1
+  },
+
+  "last_updated": "2026-04-06"
+}

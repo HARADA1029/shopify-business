@@ -659,13 +659,124 @@ def suggest_weekly_focus(products, wp_posts, wp_categories):
 
 
 # ============================================================
-# メインエントリポイント: 全提案を生成
+# 共有状態の読み書き
+# ============================================================
+
+def _load_shared_state():
+    """shared_state.json を読み込む"""
+    path = os.path.join(SCRIPT_DIR, "shared_state.json")
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return {}
+
+
+def _save_shared_state(state):
+    """shared_state.json に書き込む"""
+    path = os.path.join(SCRIPT_DIR, "shared_state.json")
+    state["last_updated"] = NOW.strftime("%Y-%m-%d")
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(state, f, indent=2, ensure_ascii=False)
+    except IOError:
+        pass
+
+
+def _load_proposal_history():
+    """proposal_history.json を読み込む"""
+    path = os.path.join(SCRIPT_DIR, "proposal_history.json")
+    if not os.path.exists(path):
+        return []
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data.get("proposals", [])
+    except (json.JSONDecodeError, IOError):
+        return []
+
+
+# ============================================================
+# 提案スコアリング
+# ============================================================
+
+def _score_proposal(proposal, shared_state):
+    """提案にスコアを付与する"""
+    weights = shared_state.get("scoring_weights", {
+        "sales_proximity": 3,
+        "ease_of_implementation": 2,
+        "data_evidence": 2,
+        "competitive_advantage": 1,
+        "focus_category_match": 2,
+        "past_success_rate": 1,
+    })
+
+    msg = proposal.get("message", "").lower()
+    agent = proposal.get("agent", "")
+    focus_cat = shared_state.get("weekly_focus", {}).get("category", "").lower()
+
+    # 売上近接度
+    if "shopify expansion" in msg or "products_to_add" in msg:
+        sales = 3
+    elif "cta" in msg or "link" in msg or "sns post" in msg:
+        sales = 2
+    else:
+        sales = 1
+
+    # 実装容易度
+    if agent == "catalog-migration-planner":
+        ease = 2  # 商品追加はAPI1回
+    elif "article" in msg:
+        ease = 1  # 記事作成は手間がかかる
+    else:
+        ease = 2
+
+    # データ根拠
+    if "watchers" in msg or "coverage" in msg or "impressions" in msg:
+        evidence = 3
+    elif "articles" in msg and "products" in msg:
+        evidence = 2
+    else:
+        evidence = 1
+
+    # 競合比較優位
+    competitive = 1  # デフォルト。競合分析結果が入ったら加点
+
+    # 重点カテゴリ一致
+    if focus_cat and focus_cat in msg:
+        focus_match = 3
+    elif focus_cat and any(word in msg for word in focus_cat.lower().split()):
+        focus_match = 2
+    else:
+        focus_match = 1
+
+    # 過去成功率（履歴に基づく）
+    past = 1  # デフォルト
+
+    total = (
+        sales * weights["sales_proximity"]
+        + ease * weights["ease_of_implementation"]
+        + evidence * weights["data_evidence"]
+        + competitive * weights["competitive_advantage"]
+        + focus_match * weights["focus_category_match"]
+        + past * weights["past_success_rate"]
+    )
+
+    proposal["_score"] = total
+    return proposal
+
+
+# ============================================================
+# メインエントリポイント: 全提案を生成 + スコアリング
 # ============================================================
 
 def generate_all_suggestions(products, wp_posts, wp_categories):
-    """全てのアクション提案を生成して返す"""
-    all_findings = []
+    """全てのアクション提案を生成し、スコアリングして返す"""
+    shared_state = _load_shared_state()
 
+    all_findings = []
     all_findings.extend(suggest_article_themes(products, wp_posts, wp_categories))
     all_findings.extend(suggest_sns_posts(products, wp_posts))
     all_findings.extend(suggest_internal_links(wp_posts, wp_categories))
@@ -674,5 +785,17 @@ def generate_all_suggestions(products, wp_posts, wp_categories):
     all_findings.extend(suggest_article_candidates(products, wp_posts))
     all_findings.extend(suggest_derived_articles(products, wp_posts, wp_categories))
     all_findings.extend(suggest_weekly_focus(products, wp_posts, wp_categories))
+
+    # スコアリング
+    for f in all_findings:
+        _score_proposal(f, shared_state)
+
+    # スコア順にソート
+    all_findings.sort(key=lambda x: -x.get("_score", 0))
+
+    # 各提案にスコアを表示用に追加
+    for f in all_findings:
+        score = f.pop("_score", 0)
+        f["message"] = "[Score:%d] %s" % (score, f["message"])
 
     return all_findings
