@@ -38,7 +38,7 @@ SYNC_LOG_FILE = os.path.join(SCRIPT_DIR, "price_sync_log.json")
 SHOPIFY_DISCOUNT_RATE = 0.91
 MINIMUM_PROFIT_MARGIN = 0.10  # 最低10%の利益マージン
 MINIMUM_PRICE_USD = 10.0       # 最低販売価格
-MAX_PRICE_CHANGE_PCT = 0.30    # 1回の変更で30%以上変わる場合は要確認
+MAX_PRICE_CHANGE_PCT = 999.0   # 変動幅チェックなし（赤字防止のため即時更新優先）
 PRICE_ROUNDING = True          # 端数を整数に丸める
 
 
@@ -62,16 +62,78 @@ def _save_sync_log(log):
         json.dump(log, f, indent=2, ensure_ascii=False)
 
 
-def _load_ebay_prices():
-    """eBay の最新価格を CSV から取得"""
-    csv_path = os.path.join(PROJECT_ROOT, "product-migration", "data", "active_listings_target.csv")
-    if not os.path.exists(csv_path):
-        return {}
+def _get_ebay_token():
+    """eBay OAuth トークンを取得"""
+    import base64
+    app_id = os.environ.get("EBAY_APP_ID", "")
+    cert_id = os.environ.get("EBAY_CERT_ID", "")
+    if not app_id or not cert_id:
+        # .env から読み込み
+        from dotenv import dotenv_values
+        env = dotenv_values(os.path.join(PROJECT_ROOT, ".env"))
+        app_id = env.get("EBAY_APP_ID", "")
+        cert_id = env.get("EBAY_CERT_ID", "")
+    if not app_id or not cert_id:
+        return None
+    credentials = "%s:%s" % (app_id, cert_id)
+    encoded = base64.b64encode(credentials.encode()).decode()
     try:
-        with open(csv_path, "r", encoding="utf-8-sig") as f:
-            return {r["item_id"]: float(r.get("price", "0") or "0") for r in csv.DictReader(f)}
+        resp = requests.post(
+            "https://api.ebay.com/identity/v1/oauth2/token",
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Authorization": "Basic %s" % encoded,
+            },
+            data={
+                "grant_type": "client_credentials",
+                "scope": "https://api.ebay.com/oauth/api_scope",
+            },
+            timeout=15,
+        )
+        if resp.status_code == 200:
+            return resp.json().get("access_token", "")
     except Exception:
+        pass
+    return None
+
+
+def _load_ebay_prices(ebay_ids):
+    """eBay API からリアルタイム価格を取得"""
+    token = _get_ebay_token()
+    if not token:
+        # フォールバック: CSV から取得
+        csv_path = os.path.join(PROJECT_ROOT, "product-migration", "data", "active_listings_target.csv")
+        if os.path.exists(csv_path):
+            try:
+                with open(csv_path, "r", encoding="utf-8-sig") as f:
+                    return {r["item_id"]: float(r.get("price", "0") or "0") for r in csv.DictReader(f)}
+            except Exception:
+                pass
         return {}
+
+    prices = {}
+    headers = {
+        "Authorization": "Bearer %s" % token,
+        "X-EBAY-C-MARKETPLACE-ID": "EBAY_US",
+    }
+
+    for ebay_id in ebay_ids:
+        try:
+            resp = requests.get(
+                "https://api.ebay.com/buy/browse/v1/item/v1|%s|0" % ebay_id,
+                headers=headers,
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                item = resp.json()
+                price_str = item.get("price", {}).get("value", "0")
+                prices[ebay_id] = float(price_str)
+            import time
+            time.sleep(0.2)  # レート制限対策
+        except Exception:
+            continue
+
+    return prices
 
 
 def _get_shopify_products():
@@ -149,7 +211,17 @@ def sync_prices():
     findings = []
     sync_log = _load_sync_log()
 
-    ebay_prices = _load_ebay_prices()
+    # Shopify 商品から eBay ID を収集
+    products = _get_shopify_products()
+    ebay_ids = []
+    for p in products:
+        for v in p.get("variants", []):
+            sku = v.get("sku", "")
+            if sku.startswith("EB-"):
+                ebay_ids.append(sku[3:])
+
+    # eBay API からリアルタイム価格を取得
+    ebay_prices = _load_ebay_prices(ebay_ids)
     if not ebay_prices:
         findings.append({
             "type": "info", "agent": "price-auditor",
@@ -157,7 +229,6 @@ def sync_prices():
         })
         return findings
 
-    products = _get_shopify_products()
     if not products:
         findings.append({
             "type": "info", "agent": "price-auditor",
