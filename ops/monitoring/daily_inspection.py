@@ -1314,6 +1314,7 @@ from task_tracker import generate_task_report
 from cross_feedback import generate_cross_feedback
 from agent_learning_summary import generate_learning_summary
 from agent_load_monitor import check_agent_load
+from blog_automation import run_blog_automation
 
 
 # ============================================================
@@ -1714,6 +1715,9 @@ def main():
     all_findings.extend(generate_learning_summary(all_findings))
 
     print("[INFO] エージェント負荷チェック...")
+    print("[INFO] ブログ記事 PDCA...")
+    all_findings.extend(run_blog_automation(products, wp_posts_data, wp_categories_data))
+
     all_findings.extend(check_agent_load(all_findings))
 
     print("[INFO] レポート生成...")
