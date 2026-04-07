@@ -754,6 +754,16 @@ def _score_proposal(proposal, shared_state):
 
     # 過去成功率（履歴に基づく）
     past = 1  # デフォルト
+    history = _load_proposal_history()
+    if history:
+        # 類似提案の過去結果を確認
+        for h in history:
+            h_msg = h.get("proposal", "").lower()
+            if any(word in h_msg for word in msg.split()[:3] if len(word) > 4):
+                if h.get("actual_result") and "success" in str(h.get("actual_result", "")).lower():
+                    past = 3  # 過去に成功
+                elif h.get("actual_result") and "fail" in str(h.get("actual_result", "")).lower():
+                    past = 0  # 過去に失敗
 
     total = (
         sales * weights["sales_proximity"]

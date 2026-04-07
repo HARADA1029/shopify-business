@@ -1,0 +1,30 @@
+name: Weekly Improvement Report
+
+on:
+  schedule:
+    - cron: '0 18 * * 1'  # UTC 18:00 Monday = JST 03:00 Monday
+  workflow_dispatch: {}
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install requests python-dotenv
+
+      - name: Run weekly report
+        run: python ops/monitoring/weekly_report.py
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: weekly-report-${{ github.run_number }}
+          path: ops/monitoring/reports/weekly_*.md
+          retention-days: 90

@@ -1308,6 +1308,7 @@ import sys as _sys
 _sys.path.insert(0, SCRIPT_DIR)
 from action_suggestions import generate_all_suggestions
 from settings_audit import run_all_audits
+from competitive_analysis import run_competitive_analysis
 
 
 # ============================================================
@@ -1688,6 +1689,9 @@ def main():
 
     print("[INFO] 設定最適化 + 分析設定チェック...")
     all_findings.extend(run_all_audits(products))
+
+    print("[INFO] 競合比較チェック...")
+    all_findings.extend(run_competitive_analysis(products))
 
     print()
 
