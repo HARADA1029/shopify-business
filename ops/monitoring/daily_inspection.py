@@ -1312,6 +1312,7 @@ from competitive_analysis import run_competitive_analysis
 from sns_optimizer import run_sns_optimization
 from task_tracker import generate_task_report
 from cross_feedback import generate_cross_feedback
+from agent_learning_summary import generate_learning_summary
 
 
 # ============================================================
@@ -1707,6 +1708,9 @@ def main():
     # レポート生成
     print("[INFO] 横断フィードバック生成...")
     all_findings.extend(generate_cross_feedback(all_findings))
+
+    print("[INFO] エージェント学習サマリ...")
+    all_findings.extend(generate_learning_summary(all_findings))
 
     print("[INFO] レポート生成...")
 
