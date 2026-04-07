@@ -1309,6 +1309,7 @@ _sys.path.insert(0, SCRIPT_DIR)
 from action_suggestions import generate_all_suggestions
 from settings_audit import run_all_audits
 from competitive_analysis import run_competitive_analysis
+from sns_optimizer import run_sns_optimization
 
 
 # ============================================================
@@ -1692,6 +1693,9 @@ def main():
 
     print("[INFO] 競合比較チェック...")
     all_findings.extend(run_competitive_analysis(products))
+
+    print("[INFO] SNS 最適化ループ...")
+    all_findings.extend(run_sns_optimization())
 
     print()
 
