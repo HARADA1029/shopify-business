@@ -193,11 +193,163 @@ def compare_with_self(competitor_data, products):
 
 
 # ============================================================
+# UI/UX 継続改善ループ
+# ============================================================
+
+def analyze_uiux_gaps(competitor_data):
+    """競合のUI/UX要素と自社を比較し、改善案を生成する"""
+    findings = []
+
+    if not competitor_data:
+        return findings
+
+    # 自社の現状（定期更新）
+    self_uiux = {
+        "hero_type": "product_photo",
+        "color_scheme": "white_base_green_accent",
+        "trust_badges": True,
+        "reviews": False,
+        "condition_labels": False,
+        "newsletter_popup": False,
+        "quick_view": False,
+        "loyalty_program": False,
+        "multi_language": False,
+        "media_mentions": False,
+    }
+
+    gap_suggestions = []
+
+    for key, data in competitor_data.items():
+        if data.get("status") != "ok":
+            continue
+
+        name = COMPETITORS[key]["name"]
+
+        # レビュー機能
+        if data.get("has_reviews") and not self_uiux["reviews"]:
+            gap_suggestions.append({
+                "element": "Product reviews",
+                "competitor": name,
+                "self_status": "Not implemented",
+                "action": "Add Judge.me or Shopify Product Reviews app",
+                "priority": "high",
+                "impact": "Trust + CVR improvement",
+            })
+
+        # ニュースレター
+        if data.get("has_newsletter") and not self_uiux["newsletter_popup"]:
+            gap_suggestions.append({
+                "element": "Newsletter signup",
+                "competitor": name,
+                "self_status": "Not implemented",
+                "action": "Add email capture with first-order incentive",
+                "priority": "medium",
+                "impact": "Customer retention + repeat visits",
+            })
+
+        # プロモーション表示
+        promos = data.get("promotions", [])
+        for p in promos[:1]:
+            if "free shipping" in p.lower():
+                gap_suggestions.append({
+                    "element": "Free shipping promotion",
+                    "competitor": name,
+                    "self_status": "No shipping promotion displayed",
+                    "action": "Add shipping threshold banner (e.g. Free shipping over $XX)",
+                    "priority": "medium",
+                    "impact": "AOV increase + conversion",
+                })
+                break
+
+    # 重複除去（element ベース）
+    seen = set()
+    unique = []
+    for s in gap_suggestions:
+        if s["element"] not in seen:
+            seen.add(s["element"])
+            unique.append(s)
+
+    if unique:
+        details = []
+        for s in unique[:3]:
+            details.append(
+                "[%s] %s: %s (ref: %s)" % (s["priority"], s["element"], s["action"][:50], s["competitor"])
+            )
+
+        findings.append({
+            "type": "action", "agent": "competitive-intelligence",
+            "message": "UI/UX improvement: %d gaps found vs competitors" % len(unique),
+            "details": details,
+        })
+
+    return findings
+
+
+def check_self_uiux():
+    """自社サイトのUI/UX状態を確認する"""
+    findings = []
+
+    import requests as _req
+
+    checks = []
+
+    # Shopify トップページ確認
+    try:
+        resp = _req.get("https://hd-toys-store-japan.myshopify.com/", headers=HEADERS, timeout=10)
+        if resp.status_code == 200:
+            html = resp.text.lower()
+
+            if "trust-badge" not in html:
+                checks.append("[Shopify] Trust badge bar not rendering")
+            if "shipped from japan" not in html:
+                checks.append("[Shopify] 'Shipped from Japan' not visible on top page")
+
+            # CTA ボタンの視認性
+            import re
+            buttons = re.findall(r'class="[^"]*button[^"]*"', html)
+            if len(buttons) < 2:
+                checks.append("[Shopify] Few CTA buttons visible on top page")
+
+    except Exception:
+        checks.append("[Shopify] Top page check failed")
+
+    # hd-bodyscience.com 確認
+    try:
+        resp = _req.get("https://hd-bodyscience.com/", headers=HEADERS, timeout=10)
+        if resp.status_code == 200:
+            html = resp.text.lower()
+
+            if "browse by category" not in html:
+                checks.append("[Blog] Category navigation block missing")
+            if "hd-toys-store-japan" not in html:
+                checks.append("[Blog] Shopify link not on top page")
+
+    except Exception:
+        checks.append("[Blog] Top page check failed")
+
+    if checks:
+        findings.append({
+            "type": "suggestion", "agent": "store-setup",
+            "message": "Self UI/UX check: %d issues found" % len(checks),
+            "details": checks[:5],
+        })
+    else:
+        findings.append({
+            "type": "ok", "agent": "store-setup",
+            "message": "Self UI/UX check: All elements rendering correctly",
+        })
+
+    return findings
+
+
+# ============================================================
 # メインエントリポイント
 # ============================================================
 
 def run_competitive_analysis(products):
-    """競合比較を実行して提案を返す"""
+    """競合比較 + UI/UX改善ループを実行して提案を返す"""
     competitor_data = fetch_competitor_data()
     findings = compare_with_self(competitor_data, products)
+    findings.extend(analyze_uiux_gaps(competitor_data))
+    findings.extend(check_self_uiux())
     return findings

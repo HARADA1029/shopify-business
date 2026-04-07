@@ -768,12 +768,12 @@ def _score_proposal(proposal, shared_state):
                     past = 0  # 過去に失敗
 
     total = (
-        sales * weights["sales_proximity"]
-        + ease * weights["ease_of_implementation"]
-        + evidence * weights["data_evidence"]
-        + competitive * weights["competitive_advantage"]
-        + focus_match * weights["focus_category_match"]
-        + past * weights["past_success_rate"]
+        sales * weights.get("reader_value", weights.get("sales_proximity", 3))
+        + ease * weights.get("ease_of_implementation", 2)
+        + evidence * weights.get("data_evidence", 2)
+        + competitive * weights.get("trust_building", weights.get("competitive_advantage", 1))
+        + focus_match * weights.get("focus_category_match", 2)
+        + past * weights.get("past_success_rate", 1)
     )
 
     proposal["_score"] = total
