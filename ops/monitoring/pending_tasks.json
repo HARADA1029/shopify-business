@@ -1,0 +1,95 @@
+{
+  "_last_updated": "2026-04-07",
+  "tasks": [
+    {
+      "id": "T001",
+      "name": "Pinterest API 連携",
+      "category": "SNS",
+      "priority": "high",
+      "status": "on_hold",
+      "proposed_date": "2026-04-06",
+      "reason": "自動投稿と分析基盤のため必須。サポート返信待ち"
+    },
+    {
+      "id": "T002",
+      "name": "Trading Cards Draft 3件の Active 化",
+      "category": "Shopify",
+      "priority": "high",
+      "status": "pending",
+      "proposed_date": "2026-04-06",
+      "reason": "今週の重点カテゴリの受け皿不足を解消"
+    },
+    {
+      "id": "T003",
+      "name": "TikTok API 連携（DNS認証待ち）",
+      "category": "SNS",
+      "priority": "high",
+      "status": "on_hold",
+      "proposed_date": "2026-04-07",
+      "reason": "動画自動投稿チャネル拡大。DNS伝播待ち"
+    },
+    {
+      "id": "T004",
+      "name": "GA4 e-commerce イベント設定",
+      "category": "Analytics",
+      "priority": "high",
+      "status": "pending",
+      "proposed_date": "2026-04-07",
+      "reason": "view_item/add_to_cart/purchase の計測でCVR改善"
+    },
+    {
+      "id": "T005",
+      "name": "Collection SEO 残り2件（ホームページ, Sale）",
+      "category": "Shopify",
+      "priority": "medium",
+      "status": "pending",
+      "proposed_date": "2026-04-05",
+      "reason": "カテゴリページの検索流入改善"
+    },
+    {
+      "id": "T006",
+      "name": "Shipping / Refund policy ページ公開",
+      "category": "Shopify",
+      "priority": "medium",
+      "status": "pending",
+      "proposed_date": "2026-04-07",
+      "reason": "信頼訴求と購入率改善"
+    },
+    {
+      "id": "T007",
+      "name": "Shopify デザイン改善（配色明るく + 信頼バッジ + ヒーローバナー）",
+      "category": "Shopify",
+      "priority": "medium",
+      "status": "completed",
+      "proposed_date": "2026-04-06",
+      "reason": "競合比較で暗い印象。CVR改善"
+    },
+    {
+      "id": "T008",
+      "name": "Shopify レビュー機能導入（Judge.me等）",
+      "category": "Shopify",
+      "priority": "medium",
+      "status": "pending",
+      "proposed_date": "2026-04-06",
+      "reason": "競合の大半が導入。信頼性向上"
+    },
+    {
+      "id": "T009",
+      "name": "Instagram bio 手動更新",
+      "category": "SNS",
+      "priority": "low",
+      "status": "pending",
+      "proposed_date": "2026-04-06",
+      "reason": "API制限で手動のみ。現在のbioでも機能している"
+    },
+    {
+      "id": "T010",
+      "name": "Draft 8件の Product Type Other 整理",
+      "category": "Shopify",
+      "priority": "low",
+      "status": "pending",
+      "proposed_date": "2026-04-05",
+      "reason": "Active化するタイミングで個別整理"
+    }
+  ]
+}
