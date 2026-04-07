@@ -1307,6 +1307,7 @@ def inspect_search_console():
 import sys as _sys
 _sys.path.insert(0, SCRIPT_DIR)
 from action_suggestions import generate_all_suggestions
+from settings_audit import run_all_audits
 
 
 # ============================================================
@@ -1684,6 +1685,9 @@ def main():
         pass
 
     all_findings.extend(generate_all_suggestions(products, wp_posts_data, wp_categories_data))
+
+    print("[INFO] 設定最適化 + 分析設定チェック...")
+    all_findings.extend(run_all_audits(products))
 
     print()
 
