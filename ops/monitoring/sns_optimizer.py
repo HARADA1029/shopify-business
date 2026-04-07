@@ -126,7 +126,7 @@ def generate_next_post_recommendations(analysis, weights):
 
     if not analysis:
         findings.append({
-            "type": "info", "agent": "growth-foundation",
+            "type": "info", "agent": "sns-manager",
             "message": "SNS optimization: No post history yet, using default rotation",
         })
         return findings
@@ -172,7 +172,7 @@ def generate_next_post_recommendations(analysis, weights):
         details.extend(patterns_to_try)
 
     findings.append({
-        "type": "action", "agent": "growth-foundation",
+        "type": "action", "agent": "sns-manager",
         "message": "SNS optimization: %d posts this week, %d improvement suggestions" % (
             analysis["total_posts"], len(under) + len(patterns_to_try),
         ),
@@ -215,7 +215,7 @@ def analyze_competitor_sns():
 
     if insights:
         findings.append({
-            "type": "info", "agent": "growth-foundation",
+            "type": "info", "agent": "sns-manager",
             "message": "Competitor SNS check: %d accounts scanned" % len(insights),
             "details": insights,
         })

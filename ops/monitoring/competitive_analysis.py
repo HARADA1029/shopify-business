@@ -177,14 +177,14 @@ def compare_with_self(competitor_data, products):
 
     if suggestions:
         findings.append({
-            "type": "medium_term", "agent": "growth-foundation",
+            "type": "medium_term", "agent": "competitive-intelligence",
             "message": "Competitive insights: %d improvement ideas from %d competitors" % (len(suggestions), len(competitor_data)),
             "details": suggestions[:5],
         })
 
     if changes:
         findings.append({
-            "type": "info", "agent": "growth-foundation",
+            "type": "info", "agent": "competitive-intelligence",
             "message": "Competitor changes detected: %d sites updated" % len(changes),
             "details": changes,
         })

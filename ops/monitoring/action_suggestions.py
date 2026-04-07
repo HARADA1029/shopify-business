@@ -135,7 +135,7 @@ def suggest_article_themes(products, wp_posts, wp_categories):
             details.append("  Products: %s" % ", ".join(sample))
 
         findings.append({
-            "type": "action", "agent": "growth-foundation",
+            "type": "action", "agent": "content-strategist",
             "message": "Article ideas: %d categories with more products than articles" % len(gaps),
             "details": details,
         })
@@ -212,7 +212,7 @@ def suggest_sns_posts(products, wp_posts):
             details.append("Image: %s" % image_url[:80])
 
         findings.append({
-            "type": "action", "agent": "growth-foundation",
+            "type": "action", "agent": "sns-manager",
             "message": "SNS post idea: %s" % title,
             "details": details,
         })
@@ -267,7 +267,7 @@ def suggest_internal_links(wp_posts, wp_categories):
 
     if suggestions:
         findings.append({
-            "type": "action", "agent": "growth-foundation",
+            "type": "action", "agent": "content-strategist",
             "message": "Internal link opportunities: %d article pairs without cross-links" % len(suggestions),
             "details": suggestions[:3],
         })
@@ -518,7 +518,7 @@ def suggest_article_candidates(products, wp_posts):
                 break
 
         findings.append({
-            "type": "action", "agent": "growth-foundation",
+            "type": "action", "agent": "content-strategist",
             "message": "Article candidates: %d products with low blog coverage" % len(candidates),
             "details": details,
         })
@@ -587,7 +587,7 @@ def suggest_derived_articles(products, wp_posts, wp_categories):
             )
 
         findings.append({
-            "type": "action", "agent": "growth-foundation",
+            "type": "action", "agent": "content-strategist",
             "message": "Derived article ideas: roundups and guides from existing content",
             "details": details,
         })

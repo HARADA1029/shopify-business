@@ -144,21 +144,21 @@ def audit_wordpress_settings():
 
     if issues:
         findings.append({
-            "type": "suggestion", "agent": "growth-foundation",
+            "type": "suggestion", "agent": "content-strategist",
             "message": "WordPress settings: %d issues" % len(issues),
             "details": issues,
         })
 
     if recommendations:
         findings.append({
-            "type": "medium_term", "agent": "growth-foundation",
+            "type": "medium_term", "agent": "content-strategist",
             "message": "WordPress optimization: %d recommendations" % len(recommendations),
             "details": recommendations[:5],
         })
 
     if not issues and not recommendations:
         findings.append({
-            "type": "ok", "agent": "growth-foundation",
+            "type": "ok", "agent": "content-strategist",
             "message": "WordPress settings: All checked, no issues",
         })
 
@@ -166,13 +166,13 @@ def audit_wordpress_settings():
 
 
 def audit_sns_settings():
-    """SNS アカウントの設定チェック"""
+    """SNS アカウントの設定チェック (sns-manager)"""
     findings = []
 
     config_path = os.path.join(SCRIPT_DIR, "external_links_config.json")
     if not os.path.exists(config_path):
         findings.append({
-            "type": "info", "agent": "growth-foundation",
+            "type": "info", "agent": "sns-manager",
             "message": "SNS audit: config file not found",
         })
         return findings
@@ -218,7 +218,7 @@ def audit_sns_settings():
     status_items.append("eBay SNS profiles: %d/%d with Shopify URL" % (ebay_set, ebay_total))
 
     findings.append({
-        "type": "info", "agent": "growth-foundation",
+        "type": "info", "agent": "sns-manager",
         "message": "SNS settings status: %d items checked" % len(status_items),
         "details": status_items,
     })
