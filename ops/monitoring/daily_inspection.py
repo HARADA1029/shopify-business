@@ -1311,6 +1311,7 @@ from settings_audit import run_all_audits
 from competitive_analysis import run_competitive_analysis
 from sns_optimizer import run_sns_optimization
 from task_tracker import generate_task_report
+from cross_feedback import generate_cross_feedback
 
 
 # ============================================================
@@ -1704,6 +1705,9 @@ def main():
     print()
 
     # レポート生成
+    print("[INFO] 横断フィードバック生成...")
+    all_findings.extend(generate_cross_feedback(all_findings))
+
     print("[INFO] レポート生成...")
 
     md_report = generate_markdown_report(all_findings, shop)
