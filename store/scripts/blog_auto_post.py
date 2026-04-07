@@ -162,12 +162,16 @@ Follow this structure exactly:
 
 Important rules:
 - Write in HTML format (use <h2>, <h3>, <p> tags)
-- Tone: informative, collector-friendly, enthusiastic but not pushy
+- Tone: informative, collector-friendly, enthusiastic but NOT pushy or salesy
 - Word count: 1200-1500 words
 - Do NOT include any <h1> tags
 - Do NOT include the product title as a heading (WordPress will add it)
 - Include natural mentions of "shipped from Japan" and "pre-owned, inspected"
 - Do NOT generate fake reviews or testimonials
+- PRIORITY: Provide genuine value to collectors. Help them understand the item, its history, and why it matters.
+- Avoid hard-sell language. The goal is to earn trust and make the reader want to come back.
+- Write as if helping a fellow collector, not selling to a customer.
+- Keep the article engaging and easy to read. Remove fluff. Every paragraph should add value.
 """ % (title, product_type, description[:300])
 
     url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=%s" % GEMINI_KEY

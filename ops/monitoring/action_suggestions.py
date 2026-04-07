@@ -717,11 +717,13 @@ def _score_proposal(proposal, shared_state):
     agent = proposal.get("agent", "")
     focus_cat = shared_state.get("weekly_focus", {}).get("category", "").lower()
 
-    # 売上近接度
-    if "shopify expansion" in msg or "products_to_add" in msg:
-        sales = 3
-    elif "cta" in msg or "link" in msg or "sns post" in msg:
-        sales = 2
+    # 価値提供度（最上位方針: 売上直結より価値提供・信頼形成を優先）
+    if "article" in msg or "internal link" in msg or "derived" in msg:
+        sales = 3  # 読者価値の高いコンテンツ提供
+    elif "shopify expansion" in msg or "products_to_add" in msg:
+        sales = 2  # 商品充実（品揃え価値）
+    elif "cta" in msg or "sns post" in msg:
+        sales = 1  # 導線（自然な範囲）
     else:
         sales = 1
 

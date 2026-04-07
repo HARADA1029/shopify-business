@@ -19,13 +19,15 @@
   "active_experiments": [],
 
   "scoring_weights": {
-    "sales_proximity": 3,
+    "reader_value": 3,
+    "trust_building": 2,
     "ease_of_implementation": 2,
     "data_evidence": 2,
-    "competitive_advantage": 1,
     "focus_category_match": 2,
     "past_success_rate": 1
   },
+
+  "philosophy": "Value first: provide value -> build trust -> earn fans -> sales follow naturally",
 
   "last_updated": "2026-04-06"
 }

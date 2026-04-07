@@ -145,12 +145,14 @@ def generate_caption(product, category):
     caption = (
         "%s\n"
         "\n"
-        "Pre-owned, inspected & shipped directly from Japan\n"
+        "Did you know? This item was originally released in Japan and is now a sought-after collectible worldwide.\n"
         "\n"
-        "Link in bio to shop!\n"
+        "Pre-owned, carefully inspected & shipped from Japan\n"
+        "\n"
+        "More in bio\n"
         "\n"
         "%s\n"
-        "#shippedfromjapan #japanimport #preowned"
+        "#shippedfromjapan #japanimport #collector"
     ) % (title, tags)
 
     return caption
