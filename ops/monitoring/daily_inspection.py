@@ -1315,6 +1315,7 @@ from cross_feedback import generate_cross_feedback
 from agent_learning_summary import generate_learning_summary
 from agent_load_monitor import check_agent_load
 from blog_automation import run_blog_automation
+from price_sync import sync_prices
 
 
 # ============================================================
@@ -1641,6 +1642,9 @@ def main():
 
     print("[INFO] price-auditor 点検...")
     all_findings.extend(inspect_price_auditor(products))
+
+    print("[INFO] eBay→Shopify 価格同期...")
+    all_findings.extend(sync_prices())
 
     print("[INFO] catalog-migration-planner 点検...")
     all_findings.extend(inspect_catalog(products))
