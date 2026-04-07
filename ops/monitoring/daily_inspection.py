@@ -1310,6 +1310,7 @@ from action_suggestions import generate_all_suggestions
 from settings_audit import run_all_audits
 from competitive_analysis import run_competitive_analysis
 from sns_optimizer import run_sns_optimization
+from task_tracker import generate_task_report
 
 
 # ============================================================
@@ -1696,6 +1697,9 @@ def main():
 
     print("[INFO] SNS 最適化ループ...")
     all_findings.extend(run_sns_optimization())
+
+    print("[INFO] 未実装タスク追跡...")
+    all_findings.extend(generate_task_report())
 
     print()
 
