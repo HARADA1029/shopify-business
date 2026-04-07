@@ -132,7 +132,9 @@ def generate_article_with_gemini(product):
         SHOPIFY_URL, handle, handle,
     )
 
-    prompt = """Write a blog article in English about this Japanese collectible product for an international audience of collectors.
+    prompt = """IMPORTANT: Write this entire article in ENGLISH only. Do not use Japanese.
+
+Write a blog article in English about this Japanese collectible product for an international audience of collectors.
 
 Product: %s
 Category: %s
