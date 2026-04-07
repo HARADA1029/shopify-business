@@ -301,7 +301,7 @@ def main():
 
     # WordPress に下書き投稿
     print("[INFO] Posting to WordPress (draft)...")
-    result = post_to_wordpress(title, article_html, status="draft")
+    result = post_to_wordpress(title, article_html, status="publish")
 
     if result:
         blog_state.setdefault("articles_generated", []).append({
@@ -321,7 +321,7 @@ def main():
         print("  Title: %s" % title[:60])
         print("  WP Post ID: %d" % result["id"])
         print("  URL: %s" % result["link"])
-        print("  Status: draft (review before publishing)")
+        print("  Status: published")
 
 
 if __name__ == "__main__":

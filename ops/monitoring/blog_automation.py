@@ -306,6 +306,113 @@ def get_recommended_template():
 
 
 # ============================================================
+# 5. 公開記事の分析と改善提案
+# ============================================================
+
+def analyze_published_articles_deep(wp_posts):
+    """公開記事を詳細分析し、具体的な改善提案を生成する"""
+    findings = []
+    state = _load_blog_state()
+
+    # 自動生成した記事の分析（blog_state に記録されているもの）
+    generated = state.get("articles_generated", [])
+    if not generated:
+        return findings
+
+    analyzed_ids = set(a.get("wp_post_id") for a in state.get("analysis_history", []))
+    improvements = []
+    improvement_actions = []
+
+    for article in generated:
+        wp_id = article.get("wp_post_id", 0)
+        if not wp_id:
+            continue
+
+        # 公開後7日以上経過した記事を分析対象にする
+        from datetime import datetime as _dt
+        try:
+            pub_date = _dt.strptime(article.get("date", ""), "%Y-%m-%d").date()
+            days_since = (NOW.date() - pub_date).days
+        except (ValueError, TypeError):
+            days_since = 0
+
+        if days_since < 1:
+            continue
+
+        # WP から最新の記事データを取得
+        matching = [p for p in wp_posts if p.get("id") == wp_id]
+        if not matching:
+            continue
+
+        post = matching[0]
+        title = post.get("title", {})
+        if isinstance(title, dict):
+            title = title.get("rendered", "")
+        content = post.get("content", {})
+        if isinstance(content, dict):
+            content = content.get("rendered", "")
+
+        # 構造分析
+        word_count = len(re.sub(r'<[^>]+>', '', content).split())
+        has_shopify = "hd-toys-store-japan" in content.lower()
+        has_ebay = "ebay.com" in content.lower()
+        h2_count = len(re.findall(r'<h2', content))
+        h3_count = len(re.findall(r'<h3', content))
+        img_count = len(re.findall(r'<img', content))
+        internal_links = len(re.findall(r'hd-bodyscience\.com', content))
+
+        # 改善ルール
+        article_improvements = []
+
+        if not has_shopify:
+            article_improvements.append("Add Shopify CTA")
+        if h2_count < 3:
+            article_improvements.append("Add more H2 headings (current: %d)" % h2_count)
+        if img_count < 3:
+            article_improvements.append("Add more images (current: %d)" % img_count)
+        if internal_links < 2:
+            article_improvements.append("Add internal links to related articles")
+        if word_count < 800:
+            article_improvements.append("Expand content (current: %d words)" % word_count)
+        if word_count > 3000:
+            article_improvements.append("Consider trimming (current: %d words, may lose readers)" % word_count)
+
+        if article_improvements:
+            improvements.append({
+                "wp_id": wp_id,
+                "title": str(title)[:50],
+                "days_since_publish": days_since,
+                "issues": article_improvements,
+            })
+
+    if improvements:
+        details = []
+        for imp in improvements[:3]:
+            details.append(
+                "[%dd old] %s: %s" % (
+                    imp["days_since_publish"],
+                    imp["title"],
+                    "; ".join(imp["issues"][:2]),
+                )
+            )
+        findings.append({
+            "type": "action", "agent": "content-strategist",
+            "message": "Blog improvement: %d published articles need optimization" % len(improvements),
+            "details": details,
+        })
+
+        # 改善履歴を保存
+        state.setdefault("analysis_history", []).append({
+            "date": NOW.strftime("%Y-%m-%d"),
+            "articles_analyzed": len(improvements),
+            "issues_found": sum(len(i["issues"]) for i in improvements),
+        })
+        _save_blog_state(state)
+
+    return findings
+
+
+# ============================================================
 # メインエントリポイント
 # ============================================================
 
@@ -316,13 +423,16 @@ def run_blog_automation(products, wp_posts, wp_categories):
     # 1. 記事テーマ候補
     all_findings.extend(suggest_article_topics(products, wp_posts, wp_categories))
 
-    # 2. 既存記事の PDCA 分析
+    # 2. 既存記事の PDCA 分析（全記事）
     all_findings.extend(analyze_article_performance(wp_posts))
 
-    # 3. 競合記事リサーチ
+    # 3. 公開記事の詳細分析（自動生成記事）
+    all_findings.extend(analyze_published_articles_deep(wp_posts))
+
+    # 4. 競合記事リサーチ
     all_findings.extend(research_competitor_articles())
 
-    # 4. 今日のテンプレート推奨
+    # 5. 今日のテンプレート推奨
     template = get_recommended_template()
     all_findings.append({
         "type": "info", "agent": "content-strategist",
