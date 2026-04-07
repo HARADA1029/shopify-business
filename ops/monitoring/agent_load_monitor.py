@@ -13,8 +13,8 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # 各エージェントの設計上のタスク上限
 AGENT_CAPACITY = {
-    "growth-foundation": {"max_tasks": 8, "description": "SEO / GA4 / SC / 外部導線"},
-    "store-setup": {"max_tasks": 10, "description": "Shopify設定 / UI / Collection"},
+    "growth-foundation": {"max_tasks": 15, "description": "SEO / GA4 / SC / 外部導線"},
+    "store-setup": {"max_tasks": 12, "description": "Shopify設定 / UI / Collection"},
     "catalog-migration-planner": {"max_tasks": 6, "description": "商品データ / eBay連携"},
     "fulfillment-ops": {"max_tasks": 4, "description": "注文 / 在庫"},
     "price-auditor": {"max_tasks": 4, "description": "価格監査"},

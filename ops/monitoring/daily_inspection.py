@@ -711,7 +711,7 @@ def inspect_hd_bodyscience():
     config = _load_external_config()
     if not config or "hd_bodyscience" not in config:
         findings.append({
-            "type": "info", "agent": "growth-foundation",
+            "type": "info", "agent": "content-strategist",
             "message": "hd-bodyscience.com: 設定ファイル未読込 (external_links_config.json)",
         })
         return findings
@@ -734,20 +734,20 @@ def inspect_hd_bodyscience():
                     break
         else:
             findings.append({
-                "type": "info", "agent": "growth-foundation",
+                "type": "info", "agent": "content-strategist",
                 "message": "hd-bodyscience.com: HTTP %d (access failed)" % resp.status_code,
             })
             return findings
     except requests.exceptions.RequestException as e:
         findings.append({
-            "type": "info", "agent": "growth-foundation",
+            "type": "info", "agent": "content-strategist",
             "message": "hd-bodyscience.com: connection failed (%s)" % str(e)[:60],
         })
         return findings
 
     if not shopify_link_found:
         findings.append({
-            "type": "suggestion", "agent": "growth-foundation",
+            "type": "suggestion", "agent": "content-strategist",
             "message": "hd-bodyscience.com に Shopify へのリンクが未設置 -> 以下を追加推奨",
             "details": [
                 "サイドバーに Shopify ストアバナーを追加 (eBay バナーと並列)",
@@ -757,7 +757,7 @@ def inspect_hd_bodyscience():
         })
     else:
         findings.append({
-            "type": "ok", "agent": "growth-foundation",
+            "type": "ok", "agent": "content-strategist",
             "message": "hd-bodyscience.com: Shopify ストアへのリンク設置済み",
         })
 
@@ -773,7 +773,7 @@ def inspect_hd_bodyscience():
         )
         if wp_resp.status_code != 200:
             findings.append({
-                "type": "info", "agent": "growth-foundation",
+                "type": "info", "agent": "content-strategist",
                 "message": "hd-bodyscience.com WP API: HTTP %d" % wp_resp.status_code,
             })
             return findings
@@ -792,7 +792,7 @@ def inspect_hd_bodyscience():
 
     except requests.exceptions.RequestException as e:
         findings.append({
-            "type": "info", "agent": "growth-foundation",
+            "type": "info", "agent": "content-strategist",
             "message": "hd-bodyscience.com WP API: connection failed (%s)" % str(e)[:60],
         })
         return findings
@@ -812,7 +812,7 @@ def inspect_hd_bodyscience():
 
         if days_since > 14:
             findings.append({
-                "type": "suggestion", "agent": "growth-foundation",
+                "type": "suggestion", "agent": "content-strategist",
                 "message": "hd-bodyscience.com: %d日間記事更新なし -> 定期更新で SEO 評価を維持" % days_since,
                 "details": [
                     "最新記事: [%s] %s" % (latest_date_str, latest_title),
@@ -821,13 +821,13 @@ def inspect_hd_bodyscience():
             })
         elif days_since > 7:
             findings.append({
-                "type": "medium_term", "agent": "growth-foundation",
+                "type": "medium_term", "agent": "content-strategist",
                 "message": "hd-bodyscience.com: 最終更新 %d日前 (%s)" % (days_since, latest_date_str),
                 "details": ["最新記事: %s" % latest_title],
             })
         else:
             findings.append({
-                "type": "ok", "agent": "growth-foundation",
+                "type": "ok", "agent": "content-strategist",
                 "message": "hd-bodyscience.com: 最終更新 %s (%d日前, 総%s件)" % (latest_date_str, days_since, total_posts),
             })
 
@@ -882,13 +882,13 @@ def inspect_hd_bodyscience():
 
     if posts_without_shopify:
         findings.append({
-            "type": "suggestion", "agent": "growth-foundation",
+            "type": "suggestion", "agent": "content-strategist",
             "message": "hd-bodyscience.com: Shopify リンク未設置の送客候補記事 %d件 -> 記事内に購入リンクを追加" % len(posts_without_shopify),
             "details": posts_without_shopify[:5],
         })
     if posts_with_shopify:
         findings.append({
-            "type": "ok", "agent": "growth-foundation",
+            "type": "ok", "agent": "content-strategist",
             "message": "hd-bodyscience.com: Shopify リンク設置済み記事 %d件" % len(posts_with_shopify),
         })
 
@@ -917,7 +917,7 @@ def inspect_hd_bodyscience():
 
     if pending_items:
         findings.append({
-            "type": "medium_term", "agent": "growth-foundation",
+            "type": "medium_term", "agent": "content-strategist",
             "message": "hd-bodyscience.com 導線改善候補: %d件" % len(pending_items),
             "details": pending_items,
         })
@@ -934,7 +934,7 @@ def inspect_sns_status():
     config = _load_external_config()
     if not config:
         findings.append({
-            "type": "info", "agent": "growth-foundation",
+            "type": "info", "agent": "sns-manager",
             "message": "SNS チェック: 設定ファイル未読込 (external_links_config.json)",
         })
         return findings
@@ -951,12 +951,12 @@ def inspect_sns_status():
 
     if not_set:
         findings.append({
-            "type": "suggestion", "agent": "growth-foundation",
+            "type": "suggestion", "agent": "sns-manager",
             "message": "eBay SNS プロフィールに Shopify URL 未設置: %s -> リンク欄に追加推奨" % ", ".join(not_set),
         })
     if already_set:
         findings.append({
-            "type": "ok", "agent": "growth-foundation",
+            "type": "ok", "agent": "sns-manager",
             "message": "eBay SNS プロフィール Shopify URL 設置済み: %s" % ", ".join(already_set),
         })
 
@@ -981,7 +981,7 @@ def inspect_sns_status():
 
     if not_created:
         findings.append({
-            "type": "medium_term", "agent": "growth-foundation",
+            "type": "medium_term", "agent": "sns-manager",
             "message": "Shopify 専用 SNS 未作成: %s -> 作成して集客チャネルを拡張" % ", ".join(not_created),
             "details": [
                 "優先: Instagram (フィギュア・おもちゃの視覚訴求に最適)",
@@ -991,7 +991,7 @@ def inspect_sns_status():
         })
     if created:
         findings.append({
-            "type": "ok", "agent": "growth-foundation",
+            "type": "ok", "agent": "sns-manager",
             "message": "Shopify 専用 SNS 作成済み: %s" % ", ".join(created),
         })
 
