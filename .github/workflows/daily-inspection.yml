@@ -19,7 +19,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install dependencies
-        run: pip install requests google-analytics-data google-api-python-client google-auth
+        run: pip install requests python-dotenv google-analytics-data google-api-python-client google-auth
 
       - name: Setup GCP credentials
         env:
@@ -37,6 +37,8 @@ jobs:
           CHATWORK_ROOM_ID: ${{ secrets.CHATWORK_ROOM_ID }}
           GA4_PROPERTY_ID: ${{ secrets.GA4_PROPERTY_ID }}
           GCP_KEY_FILE: .gcp_service_account.json
+          EBAY_APP_ID: ${{ secrets.EBAY_APP_ID }}
+          EBAY_CERT_ID: ${{ secrets.EBAY_CERT_ID }}
         run: python ops/monitoring/daily_inspection.py
 
       - name: Cleanup credentials
