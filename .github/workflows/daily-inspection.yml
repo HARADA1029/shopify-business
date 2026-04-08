@@ -39,11 +39,14 @@ jobs:
           GCP_KEY_FILE: .gcp_service_account.json
           EBAY_APP_ID: ${{ secrets.EBAY_APP_ID }}
           EBAY_CERT_ID: ${{ secrets.EBAY_CERT_ID }}
-        run: python ops/monitoring/daily_inspection.py
+          EBAY_REFRESH_TOKEN: ${{ secrets.EBAY_REFRESH_TOKEN }}
+        run: |
+          python -c "import json,os;t=os.environ.get('EBAY_REFRESH_TOKEN','');json.dump({'access_token':'','refresh_token':t},open('.ebay_token.json','w')) if t else None"
+          python ops/monitoring/daily_inspection.py
 
       - name: Cleanup credentials
         if: always()
-        run: rm -f .gcp_service_account.json
+        run: rm -f .gcp_service_account.json .ebay_token.json
 
       - name: Upload report artifacts
         if: always()
