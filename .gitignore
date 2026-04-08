@@ -5,6 +5,7 @@
 .gcp_service_account.json
 .instagram_token.json
 .youtube_token.json
+.tiktok_token.json
 *.token
 *.secret
 docs/pre-launch-preparation.md
