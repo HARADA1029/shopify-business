@@ -1435,6 +1435,40 @@ def generate_markdown_report(all_findings, store_info):
         lines.append("- （チェック項目なし）")
     lines.append("")
 
+    # 💰 eBay→Shopify 価格同期サマリ
+    price_findings = [f for f in all_findings if f.get("agent") == "price-auditor" and "sync" in f.get("message", "").lower()]
+    if price_findings:
+        lines.append("## 💰 eBay→Shopify 価格同期")
+        lines.append("")
+        for f in price_findings:
+            lines.append(f"- {f['message']}")
+            for d in f.get("details", []):
+                lines.append(f"  - {d}")
+        lines.append("")
+
+    # 🎨 UI/UX 競合比較サマリ
+    uiux_findings = [f for f in all_findings if "UI/UX" in f.get("message", "") or "ui/ux" in f.get("message", "").lower() or "Competitive insights" in f.get("message", "")]
+    if uiux_findings:
+        lines.append("## 🎨 UI/UX 競合比較")
+        lines.append("")
+        for f in uiux_findings:
+            icon = {"action": "実装候補", "medium_term": "改善候補", "ok": "OK", "suggestion": "要対応"}.get(f["type"], "情報")
+            lines.append(f"- [{icon}] {f['message']}")
+            for d in f.get("details", [])[:3]:
+                lines.append(f"  - {d}")
+        lines.append("")
+
+    # 📌 未実装タスク
+    task_findings = [f for f in all_findings if "pending tasks" in f.get("message", "").lower()]
+    if task_findings:
+        lines.append("## 📌 未実装タスク")
+        lines.append("")
+        for f in task_findings:
+            lines.append(f"- {f['message']}")
+            for d in f.get("details", []):
+                lines.append(f"  - {d}")
+        lines.append("")
+
     # 外部導線サマリ
     hd_findings = [
         f for f in all_findings if "hd-bodyscience" in f.get("message", "").lower()
