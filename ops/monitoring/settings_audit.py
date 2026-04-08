@@ -144,21 +144,21 @@ def audit_wordpress_settings():
 
     if issues:
         findings.append({
-            "type": "suggestion", "agent": "content-strategist",
+            "type": "suggestion", "agent": "store-setup",
             "message": "WordPress settings: %d issues" % len(issues),
             "details": issues,
         })
 
     if recommendations:
         findings.append({
-            "type": "medium_term", "agent": "content-strategist",
+            "type": "medium_term", "agent": "store-setup",
             "message": "WordPress optimization: %d recommendations" % len(recommendations),
             "details": recommendations[:5],
         })
 
     if not issues and not recommendations:
         findings.append({
-            "type": "ok", "agent": "content-strategist",
+            "type": "ok", "agent": "store-setup",
             "message": "WordPress settings: All checked, no issues",
         })
 

@@ -25,7 +25,8 @@ AGENT_CAPACITY = {
     "sns-manager": {"max_tasks": 10, "description": "SNS投稿 / 動画 / 最適化"},
     "content-strategist": {"max_tasks": 8, "description": "記事企画 / 内部リンク / WP"},
     "competitive-intelligence": {"max_tasks": 5, "description": "競合分析 / バズ調査"},
-    "project-orchestrator": {"max_tasks": 5, "description": "統括 / タスク追跡"},
+    "blog-analyst": {"max_tasks": 10, "description": "ブログ分析 / PDCA / 内部リンク"},
+    "project-orchestrator": {"max_tasks": 8, "description": "統括 / タスク追跡"},
 }
 
 

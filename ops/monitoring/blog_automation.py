@@ -178,7 +178,7 @@ def suggest_article_topics(products, wp_posts, wp_categories):
                 )
 
         findings.append({
-            "type": "action", "agent": "content-strategist",
+            "type": "action", "agent": "blog-analyst",
             "message": "Blog topics: %d products need articles (%d categories)" % (len(uncovered), len(by_cat)),
             "details": details[:5],
         })
@@ -232,7 +232,7 @@ def analyze_article_performance(wp_posts):
 
     if improvements:
         findings.append({
-            "type": "action", "agent": "content-strategist",
+            "type": "action", "agent": "blog-analyst",
             "message": "Blog PDCA: %d articles need improvement" % len(improvements),
             "details": improvements[:5],
         })
@@ -396,7 +396,7 @@ def analyze_published_articles_deep(wp_posts):
                 )
             )
         findings.append({
-            "type": "action", "agent": "content-strategist",
+            "type": "action", "agent": "blog-analyst",
             "message": "Blog improvement: %d published articles need optimization" % len(improvements),
             "details": details,
         })

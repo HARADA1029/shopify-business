@@ -267,7 +267,7 @@ def suggest_internal_links(wp_posts, wp_categories):
 
     if suggestions:
         findings.append({
-            "type": "action", "agent": "content-strategist",
+            "type": "action", "agent": "blog-analyst",
             "message": "Internal link opportunities: %d article pairs without cross-links" % len(suggestions),
             "details": suggestions[:3],
         })
@@ -587,7 +587,7 @@ def suggest_derived_articles(products, wp_posts, wp_categories):
             )
 
         findings.append({
-            "type": "action", "agent": "content-strategist",
+            "type": "action", "agent": "blog-analyst",
             "message": "Derived article ideas: roundups and guides from existing content",
             "details": details,
         })
