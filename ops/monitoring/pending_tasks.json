@@ -30,12 +30,13 @@
     },
     {
       "id": "T004",
-      "name": "GA4 e-commerce イベント設定（view_item/add_to_cart済, purchase待ち）",
+      "name": "GA4 e-commerce イベント設定（view_item/add_to_cart/view_item_list/purchase）",
       "category": "Analytics",
       "priority": "high",
-      "status": "in_progress",
+      "status": "completed",
       "proposed_date": "2026-04-07",
-      "reason": "view_item/add_to_cart/purchase の計測でCVR改善"
+      "reason": "view_item/add_to_cart/purchase の計測でCVR改善",
+      "completed_date": "2026-04-08"
     },
     {
       "id": "T005",
