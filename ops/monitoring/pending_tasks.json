@@ -1,5 +1,5 @@
 {
-  "_last_updated": "2026-04-07",
+  "_last_updated": "2026-04-08",
   "tasks": [
     {
       "id": "T001",
@@ -24,7 +24,7 @@
       "name": "TikTok API 連携（DNS認証待ち）",
       "category": "SNS",
       "priority": "high",
-      "status": "on_hold",
+      "status": "completed",
       "proposed_date": "2026-04-07",
       "reason": "動画自動投稿チャネル拡大。DNS伝播待ち"
     },
@@ -90,6 +90,196 @@
       "status": "pending",
       "proposed_date": "2026-04-05",
       "reason": "Active化するタイミングで個別整理"
+    },
+    {
+      "id": "T100",
+      "name": "Shopify 配色改善（白ベース+グリーン+ネイビー）",
+      "category": "Shopify",
+      "priority": "high",
+      "status": "completed",
+      "proposed_date": "2026-04-06",
+      "completed_date": "2026-04-07",
+      "reason": "競合比較で暗い印象を改善"
+    },
+    {
+      "id": "T101",
+      "name": "Shopify 信頼バッジ追加（Shipped from Japan等4項目）",
+      "category": "Shopify",
+      "priority": "high",
+      "status": "completed",
+      "proposed_date": "2026-04-06",
+      "completed_date": "2026-04-07",
+      "reason": "中古品販売の信頼訴求"
+    },
+    {
+      "id": "T102",
+      "name": "Shopify ヒーローバナー改善（商品写真ベース）",
+      "category": "Shopify",
+      "priority": "high",
+      "status": "completed",
+      "proposed_date": "2026-04-06",
+      "completed_date": "2026-04-07",
+      "reason": "Solaris Japan型クリーン路線"
+    },
+    {
+      "id": "T103",
+      "name": "GA4 設置（両サイト+クロスドメイン）",
+      "category": "Analytics",
+      "priority": "high",
+      "status": "completed",
+      "proposed_date": "2026-04-05",
+      "completed_date": "2026-04-05",
+      "reason": "計測基盤"
+    },
+    {
+      "id": "T104",
+      "name": "Search Console 登録（両サイト）",
+      "category": "Analytics",
+      "priority": "high",
+      "status": "completed",
+      "proposed_date": "2026-04-05",
+      "completed_date": "2026-04-05",
+      "reason": "SEO計測"
+    },
+    {
+      "id": "T105",
+      "name": "Instagram 自動投稿（毎日JST20:00）",
+      "category": "SNS",
+      "priority": "high",
+      "status": "completed",
+      "proposed_date": "2026-04-06",
+      "completed_date": "2026-04-06",
+      "reason": "SNS自動運用"
+    },
+    {
+      "id": "T106",
+      "name": "Facebook 自動投稿（毎日JST20:00）",
+      "category": "SNS",
+      "priority": "high",
+      "status": "completed",
+      "proposed_date": "2026-04-06",
+      "completed_date": "2026-04-06",
+      "reason": "SNS自動運用"
+    },
+    {
+      "id": "T107",
+      "name": "YouTube Shorts 自動投稿（毎日JST20:00）",
+      "category": "SNS",
+      "priority": "high",
+      "status": "completed",
+      "proposed_date": "2026-04-07",
+      "completed_date": "2026-04-07",
+      "reason": "動画SNS展開"
+    },
+    {
+      "id": "T108",
+      "name": "FB Reels + IG Reels 動画自動投稿（毎日JST02:00）",
+      "category": "SNS",
+      "priority": "high",
+      "status": "completed",
+      "proposed_date": "2026-04-07",
+      "completed_date": "2026-04-07",
+      "reason": "動画SNS展開"
+    },
+    {
+      "id": "T109",
+      "name": "hd-bodyscience.com サイドバー/ヘッダー/フッター Shopify導線",
+      "category": "WordPress",
+      "priority": "high",
+      "status": "completed",
+      "proposed_date": "2026-04-05",
+      "completed_date": "2026-04-05",
+      "reason": "Shopify送客"
+    },
+    {
+      "id": "T110",
+      "name": "hd-bodyscience.com 記事CTA 7件 + UTM設置",
+      "category": "WordPress",
+      "priority": "high",
+      "status": "completed",
+      "proposed_date": "2026-04-05",
+      "completed_date": "2026-04-05",
+      "reason": "記事送客"
+    },
+    {
+      "id": "T111",
+      "name": "ブログ記事自動生成（月水金JST09:00）",
+      "category": "WordPress",
+      "priority": "high",
+      "status": "completed",
+      "proposed_date": "2026-04-07",
+      "completed_date": "2026-04-07",
+      "reason": "コンテンツ自動化"
+    },
+    {
+      "id": "T112",
+      "name": "eBay→Shopify 価格同期（eBay APIリアルタイム）",
+      "category": "Shopify",
+      "priority": "high",
+      "status": "completed",
+      "proposed_date": "2026-04-07",
+      "completed_date": "2026-04-08",
+      "reason": "価格整合性"
+    },
+    {
+      "id": "T113",
+      "name": "エージェント3つ追加（sns-manager/content-strategist/competitive-intelligence）",
+      "category": "System",
+      "priority": "high",
+      "status": "completed",
+      "proposed_date": "2026-04-06",
+      "completed_date": "2026-04-06",
+      "reason": "負荷分散"
+    },
+    {
+      "id": "T114",
+      "name": "Goods & Accessories Collection 新設",
+      "category": "Shopify",
+      "priority": "high",
+      "status": "completed",
+      "proposed_date": "2026-04-05",
+      "completed_date": "2026-04-05",
+      "reason": "Collection未所属解消"
+    },
+    {
+      "id": "T115",
+      "name": "Product Type Other 4件整理",
+      "category": "Shopify",
+      "priority": "high",
+      "status": "completed",
+      "proposed_date": "2026-04-05",
+      "completed_date": "2026-04-05",
+      "reason": "データ品質"
+    },
+    {
+      "id": "T116",
+      "name": "eBay SNS 3アカウントにShopify URL設置",
+      "category": "SNS",
+      "priority": "medium",
+      "status": "completed",
+      "proposed_date": "2026-04-05",
+      "completed_date": "2026-04-06",
+      "reason": "プロフィール導線"
+    },
+    {
+      "id": "T117",
+      "name": "Trading Cards Draft 3件 Active化",
+      "category": "Shopify",
+      "priority": "high",
+      "status": "completed",
+      "proposed_date": "2026-04-06",
+      "completed_date": "2026-04-08",
+      "reason": "重点カテゴリ補強"
+    },
+    {
+      "id": "T118",
+      "name": "コンディションバッジCSS追加",
+      "category": "Shopify",
+      "priority": "medium",
+      "status": "completed",
+      "proposed_date": "2026-04-06",
+      "completed_date": "2026-04-08",
+      "reason": "中古品信頼性"
     }
   ]
 }

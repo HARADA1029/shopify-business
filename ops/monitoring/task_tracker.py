@@ -195,12 +195,28 @@ def generate_task_report():
             "details": details,
         })
 
-    # 完了タスク数
+    # 実施済みタスク（直近7日以内に完了したものを表示）
     completed = [t for t in task_list if t["status"] == "completed"]
-    if completed:
+    recent_completed = [
+        t for t in completed
+        if t.get("completed_date", "") >= (NOW - timedelta(days=7)).strftime("%Y-%m-%d")
+    ]
+
+    if recent_completed:
+        details = []
+        for t in sorted(recent_completed, key=lambda x: x.get("completed_date", ""), reverse=True)[:5]:
+            details.append(
+                "[実施済み] %s (%s, %s完了)" % (t["name"][:50], t["category"], t.get("completed_date", "?"))
+            )
         findings.append({
             "type": "ok", "agent": "project-orchestrator",
-            "message": "Completed tasks: %d items" % len(completed),
+            "message": "Recently completed: %d tasks in last 7 days (total: %d completed)" % (len(recent_completed), len(completed)),
+            "details": details,
+        })
+    elif completed:
+        findings.append({
+            "type": "ok", "agent": "project-orchestrator",
+            "message": "Completed tasks: %d items (no new completions this week)" % len(completed),
         })
 
     return findings

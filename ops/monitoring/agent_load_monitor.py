@@ -8,6 +8,10 @@
 import json
 import os
 from collections import Counter
+from datetime import datetime, timezone, timedelta
+
+JST = timezone(timedelta(hours=9))
+NOW = datetime.now(JST)
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -136,6 +140,41 @@ def check_agent_load(all_findings):
                 "message": "Agent load warning: %d agents approaching capacity" % len(warnings),
                 "details": warn_details,
             })
+
+    # 前回の負荷データと比較
+    load_history_file = os.path.join(SCRIPT_DIR, "agent_load_history.json")
+    prev_loads = {}
+    if os.path.exists(load_history_file):
+        try:
+            with open(load_history_file, "r", encoding="utf-8") as f:
+                prev_loads = json.load(f).get("loads", {})
+        except (json.JSONDecodeError, IOError):
+            pass
+
+    # 負荷変化を検出
+    changes = []
+    current_loads = {}
+    for agent in AGENT_CAPACITY:
+        current = agent_counts.get(agent, 0) + pending_by_agent.get(agent, 0)
+        current_loads[agent] = current
+        prev = prev_loads.get(agent, current)
+        diff = current - prev
+        if diff > 2:
+            changes.append("%s: +%d (increased)" % (agent, diff))
+        elif diff < -2:
+            changes.append("%s: %d (decreased)" % (agent, diff))
+
+    if changes:
+        details.append("")
+        details.append("Changes from last check:")
+        details.extend(["  %s" % c for c in changes])
+
+    # 現在の負荷を保存
+    try:
+        with open(load_history_file, "w", encoding="utf-8") as f:
+            json.dump({"loads": current_loads, "date": NOW.strftime("%Y-%m-%d")}, f)
+    except IOError:
+        pass
 
     # 全体サマリ
     result_findings.append({
