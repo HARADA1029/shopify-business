@@ -1316,6 +1316,7 @@ from agent_learning_summary import generate_learning_summary
 from agent_load_monitor import check_agent_load
 from execution_evidence import generate_execution_evidence
 from blog_automation import run_blog_automation
+from ebay_sales_analysis import run_ebay_sales_analysis
 from price_sync import sync_prices
 
 
@@ -1767,6 +1768,9 @@ def main():
 
     print("[INFO] エージェント負荷チェック...")
     print("[INFO] ブログ記事 PDCA...")
+    print("[INFO] eBay 売れ筋分析...")
+    all_findings.extend(run_ebay_sales_analysis(products))
+
     all_findings.extend(run_blog_automation(products, wp_posts_data, wp_categories_data))
 
     all_findings.extend(check_agent_load(all_findings))
