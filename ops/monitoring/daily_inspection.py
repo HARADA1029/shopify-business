@@ -1317,6 +1317,7 @@ from agent_load_monitor import check_agent_load
 from execution_evidence import generate_execution_evidence
 from blog_automation import run_blog_automation
 from ebay_sales_analysis import run_ebay_sales_analysis
+from product_pdca import run_product_pdca
 from price_sync import sync_prices
 
 
@@ -1770,6 +1771,9 @@ def main():
     print("[INFO] ブログ記事 PDCA...")
     print("[INFO] eBay 売れ筋分析...")
     all_findings.extend(run_ebay_sales_analysis(products))
+
+    print("[INFO] 採用商品PDCA + 商品ページ競合比較...")
+    all_findings.extend(run_product_pdca(products))
 
     all_findings.extend(run_blog_automation(products, wp_posts_data, wp_categories_data))
 
