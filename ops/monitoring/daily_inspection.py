@@ -1314,6 +1314,7 @@ from task_tracker import generate_task_report
 from cross_feedback import generate_cross_feedback
 from agent_learning_summary import generate_learning_summary
 from agent_load_monitor import check_agent_load
+from execution_evidence import generate_execution_evidence
 from blog_automation import run_blog_automation
 from price_sync import sync_prices
 
@@ -1457,6 +1458,18 @@ def generate_markdown_report(all_findings, store_info):
             for d in f.get("details", [])[:3]:
                 lines.append(f"  - {d}")
         lines.append("")
+
+    # 🔁 実行証跡
+    evidence_findings = [f for f in all_findings if f.get("message", "").startswith(("Learning summary", "PDCA progress", "Cross-agent activity", "State files", "Self-check"))]
+    if evidence_findings:
+        lines.append("## 🔁 実行証跡")
+        lines.append("")
+        for f in evidence_findings:
+            lines.append(f"### {f['message']}")
+            lines.append("")
+            for d in f.get("details", []):
+                lines.append(f"- {d}")
+            lines.append("")
 
     # 📌 未実装タスク
     task_findings = [f for f in all_findings if "pending tasks" in f.get("message", "").lower()]
@@ -1757,6 +1770,9 @@ def main():
     all_findings.extend(run_blog_automation(products, wp_posts_data, wp_categories_data))
 
     all_findings.extend(check_agent_load(all_findings))
+
+    print("[INFO] 実行証跡生成...")
+    all_findings.extend(generate_execution_evidence(all_findings))
 
     print("[INFO] レポート生成...")
 
