@@ -40,21 +40,23 @@
     },
     {
       "id": "T005",
-      "name": "Collection SEO 残り2件（ホームページ, Sale）",
+      "name": "Collection SEO 全件設定完了（ホームページ + Sale）",
       "category": "Shopify",
       "priority": "medium",
-      "status": "pending",
+      "status": "completed",
       "proposed_date": "2026-04-05",
-      "reason": "カテゴリページの検索流入改善"
+      "reason": "カテゴリページの検索流入改善",
+      "completed_date": "2026-04-08"
     },
     {
       "id": "T006",
-      "name": "Shipping / Refund policy ページ公開",
+      "name": "Shipping / Refund policy 設定完了",
       "category": "Shopify",
       "priority": "medium",
-      "status": "pending",
+      "status": "completed",
       "proposed_date": "2026-04-07",
-      "reason": "信頼訴求と購入率改善"
+      "reason": "信頼訴求と購入率改善",
+      "completed_date": "2026-04-08"
     },
     {
       "id": "T007",
@@ -281,6 +283,36 @@
       "proposed_date": "2026-04-06",
       "completed_date": "2026-04-08",
       "reason": "中古品信頼性"
+    },
+    {
+      "id": "T119",
+      "name": "Shopify 全43商品に信頼訴求ブロック追加",
+      "category": "Shopify",
+      "priority": "high",
+      "status": "completed",
+      "proposed_date": "2026-04-08",
+      "completed_date": "2026-04-08",
+      "reason": "競合比較で説明文不足を検出"
+    },
+    {
+      "id": "T120",
+      "name": "Trading Cards 残り5件 Active化（計9件に）",
+      "category": "Shopify",
+      "priority": "medium",
+      "status": "completed",
+      "proposed_date": "2026-04-08",
+      "completed_date": "2026-04-08",
+      "reason": "重点カテゴリ全件展開"
+    },
+    {
+      "id": "T121",
+      "name": "hd-bodyscience.com 内部リンク3ペア追加",
+      "category": "WordPress",
+      "priority": "medium",
+      "status": "completed",
+      "proposed_date": "2026-04-08",
+      "completed_date": "2026-04-08",
+      "reason": "記事間回遊改善"
     }
   ]
 }
