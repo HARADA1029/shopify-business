@@ -873,8 +873,21 @@ def run_sales_optimization(products, wp_posts, all_findings):
 # ============================================================
 
 def _apply_comparison_to_weights():
-    """比較分析結果をshared_stateのscoring_weightsに反映"""
+    """比較分析結果をshared_stateのscoring_weightsに反映（安全制限付き）"""
     findings = []
+
+    # 保守モードチェック
+    try:
+        from safety_audit import is_maintenance_mode
+        if is_maintenance_mode():
+            findings.append({
+                "type": "info", "agent": "self-learning",
+                "message": "Weight adjustment: SUSPENDED (maintenance mode active)",
+            })
+            return findings
+    except ImportError:
+        pass
+
     pt = _load_json("proposal_tracking.json")
     if not pt or not pt.get("proposals"):
         return findings

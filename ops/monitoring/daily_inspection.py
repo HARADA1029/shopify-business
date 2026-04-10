@@ -1382,6 +1382,7 @@ from bug_audit import generate_bug_audit
 from design_audit import run_design_audit
 from sales_optimization import run_sales_optimization
 from daily_maintenance import run_daily_maintenance
+from safety_audit import run_safety_audit
 from state_consistency_audit import generate_consistency_audit, filter_findings_by_ledger
 
 
@@ -2070,6 +2071,29 @@ def main():
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(json_data, f, indent=2, ensure_ascii=False)
     print(f"  JSON: {json_path}")
+
+    # 安全監査（メンテナンス前に実行）
+    print()
+    print("[INFO] 安全監査実行...")
+    safety_findings = run_safety_audit(all_findings)
+    all_findings.extend(safety_findings)
+
+    # 安全監査結果をレポートに追記
+    safety_lines = []
+    safety_lines.append("")
+    safety_lines.append("## 🛡️ 安全監査")
+    safety_lines.append("")
+    for f in safety_findings:
+        icon = {"critical": "🔴", "suggestion": "⚠️", "info": "ℹ️", "ok": "✅"}.get(f["type"], "📋")
+        safety_lines.append(f"### {icon} {f['message']}")
+        safety_lines.append("")
+        for d in f.get("details", []):
+            safety_lines.append(f"- {d}")
+        safety_lines.append("")
+
+    with open(md_path, "a", encoding="utf-8") as f:
+        f.write("\n".join(safety_lines))
+    print("  Safety audit appended to report")
 
     # 日次メンテナンス（レポート生成後に実行）
     print()

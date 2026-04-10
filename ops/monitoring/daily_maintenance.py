@@ -306,7 +306,14 @@ def _analyze_loss_patterns():
 # ============================================================
 
 def _auto_reinforce(all_issues):
-    """不足項目を自動で補強提案として登録"""
+    """不足項目を自動で補強提案として登録（保守モード時は停止）"""
+    try:
+        from safety_audit import is_maintenance_mode
+        if is_maintenance_mode():
+            return ["SKIPPED: maintenance mode active — auto-reinforcement suspended"]
+    except ImportError:
+        pass
+
     pt = _load_json("proposal_tracking.json")
     if not pt:
         return []
