@@ -797,6 +797,39 @@ def run_safety_audit(all_findings):
                 details.append("  BOTTLENECK: %s" % bottleneck)
             else:
                 details.append("  Funnel healthy: all stages above target")
+
+            # 商品写真訴求の効果確認
+            blog_state_check = _load_json("blog_state.json")
+            if blog_state_check:
+                tracking_articles = blog_state_check.get("post_publish_tracking", [])
+                with_photos = [t for t in tracking_articles if t.get("metrics", {}).get("pageviews", 0) > 0]
+                gen = blog_state_check.get("articles_generated", [])
+
+                photo_rich = []  # 画像4枚以上
+                photo_poor = []  # 画像3枚以下
+
+                for t in with_photos:
+                    g = [a for a in gen if a.get("wp_post_id") == t.get("wp_post_id")]
+                    if g:
+                        imgs = g[0].get("quality", {}).get("images", 0)
+                        if imgs >= 4:
+                            photo_rich.append(t)
+                        else:
+                            photo_poor.append(t)
+
+                if photo_rich or photo_poor:
+                    details.append("")
+                    details.append("  --- Photo Impact on CTA→Ref ---")
+                    for label, articles in [("4+ photos", photo_rich), ("<4 photos", photo_poor)]:
+                        if not articles:
+                            details.append("    [%s] No data yet" % label)
+                            continue
+                        pv = sum(a.get("metrics", {}).get("pageviews", 0) for a in articles)
+                        cta = sum(a.get("metrics", {}).get("cta_clicks", 0) for a in articles)
+                        ref = sum(a.get("metrics", {}).get("shopify_referrals", 0) for a in articles)
+                        cta_r = cta / max(pv, 1) * 100
+                        ref_r = ref / max(cta, 1) * 100
+                        details.append("    [%s] %d articles: PV→CTA %.1f%%, CTA→Ref %.1f%%" % (label, len(articles), cta_r, ref_r))
         else:
             details.append("  Funnel: awaiting pageview data (GA4 needs 24-48h)")
 
@@ -812,6 +845,24 @@ def run_safety_audit(all_findings):
                 details.append("[SNS] Deviations: %.1f → %.1f (INCREASING)" % (first, second))
             else:
                 details.append("[SNS] Deviations: %.1f → %.1f (stable)" % (first, second))
+
+    # 3b. Ref→Cart 改善追跡
+    if pt_data:
+        blog_tracking = _load_json("blog_state.json")
+        if blog_tracking and blog_tracking.get("post_publish_tracking"):
+            tracked = blog_tracking["post_publish_tracking"]
+            collection_date = "2026-04-10"  # コレクションリンク追加日
+            before = [t for t in tracked if t.get("published_date", "") < collection_date]
+            after = [t for t in tracked if t.get("published_date", "") >= collection_date]
+
+            if before or after:
+                details.append("")
+                details.append("[REF→CART] Collection link effect:")
+                for label, articles in [("Before collection link", before), ("After collection link", after)]:
+                    ref = sum(a.get("metrics", {}).get("shopify_referrals", 0) for a in articles)
+                    cart = sum(a.get("metrics", {}).get("add_to_cart", 0) for a in articles)
+                    rate = cart / max(ref, 1) * 100
+                    details.append("  [%s] %d articles, ref:%d → cart:%d (%.1f%%)" % (label, len(articles), ref, cart, rate))
 
     # 4. trust最強パターンの適用先別比較
     if pt_data:
