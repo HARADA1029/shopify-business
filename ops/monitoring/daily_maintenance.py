@@ -380,7 +380,66 @@ def _analyze_loss_patterns():
             findings_details.append("--- Common failure factors ---")
             findings_details.extend(common)
 
+    # === 保留 / 抑制 / 禁止候補の判定 ===
+    findings_details.append("")
+    findings_details.append("--- Action Recommendations ---")
+
+    type_fail_counts = Counter(p.get("type", "") for p in all_losses)
+    type_total_counts = Counter(p.get("type", "") for p in proposals if p.get("status") != "pending")
+
+    for ptype, fail_count in type_fail_counts.most_common():
+        total = type_total_counts.get(ptype, fail_count)
+        fail_rate = fail_count / max(total, 1)
+
+        if fail_count >= 5 and fail_rate >= 0.8:
+            findings_details.append("[PROHIBIT] %s: %d/%d failed (%.0f%%) → stop proposing this type" % (ptype, fail_count, total, fail_rate * 100))
+        elif fail_count >= 3 and fail_rate >= 0.6:
+            findings_details.append("[SUPPRESS] %s: %d/%d failed (%.0f%%) → reduce weight by 50%%" % (ptype, fail_count, total, fail_rate * 100))
+        elif fail_count >= 2 and fail_rate >= 0.5:
+            findings_details.append("[HOLD] %s: %d/%d failed (%.0f%%) → pause and review criteria" % (ptype, fail_count, total, fail_rate * 100))
+
+    # カテゴリ別失敗傾向 → shared_state に反映
+    if cat_losses:
+        _apply_category_failure_weights(dict(cat_losses))
+
     return findings_details
+
+
+def _apply_category_failure_weights(cat_losses):
+    """カテゴリ別失敗傾向をshared_stateのscoring_weightsに反映"""
+    ss = _load_json("shared_state.json")
+    if not ss:
+        return
+
+    # 保守モードチェック
+    try:
+        from safety_audit import is_maintenance_mode
+        if is_maintenance_mode():
+            return
+    except ImportError:
+        pass
+
+    adjusted = False
+    cat_weights = ss.setdefault("category_failure_weights", {})
+
+    for cat, fail_count in cat_losses.items():
+        current = cat_weights.get(cat, 1.0)
+        if fail_count >= 3:
+            new_weight = max(current - 0.3, 0.3)
+            cat_weights[cat] = round(new_weight, 1)
+            adjusted = True
+        elif fail_count >= 2:
+            new_weight = max(current - 0.1, 0.5)
+            cat_weights[cat] = round(new_weight, 1)
+            adjusted = True
+
+    if adjusted:
+        ss["category_failure_weights"] = cat_weights
+        ss.setdefault("weight_adjustment_log", []).append({
+            "date": NOW.strftime("%Y-%m-%d"),
+            "adjustments": ["Category failure weights updated: %s" % str(cat_weights)],
+        })
+        _save_json("shared_state.json", ss)
 
 
 def _check_fix_consistency(all_issues, all_fixes):
@@ -514,6 +573,7 @@ def run_daily_maintenance():
         "Issues: %d critical, %d warnings, %d info" % (critical, warnings, info),
         "Auto-fixes applied: %d" % len(all_fixes),
         "Auto-reinforced proposals: %d" % len(reinforced),
+        "Consistency warnings: %d" % len(inconsistencies),
     ]
 
     if all_issues:
