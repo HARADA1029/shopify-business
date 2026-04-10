@@ -696,6 +696,44 @@ def run_safety_audit(all_findings):
                 worsened = sum(1 for k in curr_m if curr_m.get(k, 0) > prev_m.get(k, 0))
                 details.append("  Quality metrics: %d improved, %d worsened" % (improved, worsened))
 
+    # 6. 投稿成功 → 実売上導線の効果確認
+    if pt_data:
+        # 最近の blog/SNS 成功数
+        recent_date = (NOW - timedelta(days=7)).strftime("%Y-%m-%d")
+        recent_blog_success = sum(1 for p in pt_data.get("proposals", [])
+                                  if p.get("result") == "success"
+                                  and p.get("result_date", "") >= recent_date
+                                  and any(kw in p.get("message", "").lower() for kw in ["blog", "article"]))
+        recent_sns_success = sum(1 for p in pt_data.get("proposals", [])
+                                 if p.get("result") == "success"
+                                 and p.get("result_date", "") >= recent_date
+                                 and any(kw in p.get("message", "").lower() for kw in ["sns", "instagram", "post"]))
+
+        # blog_state の追跡データ
+        blog_state_data2 = _load_json("blog_state.json")
+        tracking = blog_state_data2.get("post_publish_tracking", []) if blog_state_data2 else []
+        active_tracking = [t for t in tracking if t.get("status") == "tracking"]
+
+        total_pv = sum(t.get("metrics", {}).get("pageviews", 0) for t in active_tracking)
+        total_cta = sum(t.get("metrics", {}).get("cta_clicks", 0) for t in active_tracking)
+        total_ref = sum(t.get("metrics", {}).get("shopify_referrals", 0) for t in active_tracking)
+        total_cart = sum(t.get("metrics", {}).get("add_to_cart", 0) for t in active_tracking)
+
+        details.append("")
+        details.append("[SALES PIPELINE] Content → Sales funnel (7d)")
+        details.append("  Blog successes: %d | SNS successes: %d" % (recent_blog_success, recent_sns_success))
+        details.append("  Tracked articles: %d" % len(active_tracking))
+        details.append("  Pageviews: %d → CTA clicks: %d → Shopify refs: %d → Carts: %d" % (
+            total_pv, total_cta, total_ref, total_cart))
+
+        if total_pv > 0:
+            cta_rate = total_cta / total_pv * 100
+            ref_rate = total_ref / max(total_cta, 1) * 100
+            cart_rate = total_cart / max(total_ref, 1) * 100
+            details.append("  Funnel: PV→CTA %.1f%% | CTA→Ref %.1f%% | Ref→Cart %.1f%%" % (cta_rate, ref_rate, cart_rate))
+        else:
+            details.append("  Funnel: awaiting pageview data (GA4 needs 24-48h)")
+
     # 3. sns-manager 偏差減少
     if prev_log and prev_log.get("audits"):
         sns_devs_recent = [a.get("deviations", 0) for a in prev_log["audits"][-7:]]
@@ -709,7 +747,51 @@ def run_safety_audit(all_findings):
             else:
                 details.append("[SNS] Deviations: %.1f → %.1f (stable)" % (first, second))
 
-    # 4. 全体7日比較
+    # 4. trust最強パターンの適用先別比較
+    if pt_data:
+        scope_patterns = {
+            "product_page": {"ship": 0, "inspect": 0, "condition": 0, "combo": 0},
+            "blog_cta": {"ship": 0, "inspect": 0, "condition": 0, "combo": 0},
+            "sns_post": {"ship": 0, "inspect": 0, "condition": 0, "combo": 0},
+        }
+
+        for p in pt_data.get("proposals", []):
+            if p.get("result") != "success":
+                continue
+            msg = p.get("message", "").lower()
+            has_ship = "ship" in msg
+            has_insp = "inspect" in msg
+            has_cond = "condition" in msg
+
+            # 適用先を判定
+            if any(kw in msg for kw in ["blog", "article", "cta"]):
+                scope = "blog_cta"
+            elif any(kw in msg for kw in ["sns", "instagram", "facebook", "post", "pin"]):
+                scope = "sns_post"
+            else:
+                scope = "product_page"
+
+            if has_ship:
+                scope_patterns[scope]["ship"] += 1
+            if has_insp:
+                scope_patterns[scope]["inspect"] += 1
+            if has_cond:
+                scope_patterns[scope]["condition"] += 1
+            if has_ship and has_insp:
+                scope_patterns[scope]["combo"] += 1
+
+        has_data = any(sum(v.values()) > 0 for v in scope_patterns.values())
+        if has_data:
+            details.append("[TRUST SCOPE] Best pattern by channel:")
+            for scope, patterns in scope_patterns.items():
+                total = sum(patterns.values())
+                if total > 0:
+                    best = max(patterns.items(), key=lambda x: x[1])
+                    details.append("  %s: %s(%d) — total %d trust successes" % (scope, best[0], best[1], total))
+                else:
+                    details.append("  %s: no trust successes yet → expand here" % scope)
+
+    # 5. 全体7日比較
     if prev_log and prev_log.get("audits") and len(prev_log["audits"]) >= 7:
         week_audits = prev_log["audits"][-7:]
         first_3 = week_audits[:3]
