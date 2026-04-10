@@ -836,10 +836,19 @@ def report_passed_article_performance():
                 except (ValueError, TypeError):
                     pass
 
+        # WEAK→改善候補の追跡
+        improved_from_weak = []
+        for t in tracking_data:
+            if t.get("status") == "tracking" and t.get("was_weak"):
+                m = t.get("metrics", {})
+                if m.get("cta_clicks", 0) > 0 or m.get("pageviews", 0) >= 50:
+                    improved_from_weak.append(t)
+
         if winners or weak:
             details.append("")
             details.append("--- Win / Weak Article Classification ---")
-            details.append("Winners: %d | Weak: %d | Tracking: %d" % (len(winners), len(weak), len(tracking_data)))
+            details.append("Winners: %d | Weak: %d | Tracking: %d | Improved from weak: %d" % (
+                len(winners), len(weak), len(tracking_data), len(improved_from_weak)))
 
             if winners:
                 details.append("WIN articles:")
@@ -1049,6 +1058,49 @@ def report_passed_article_performance():
                         json.dump(ss, f, indent=2, ensure_ascii=False)
                 except (json.JSONDecodeError, IOError):
                     pass
+
+        # guide優先テンプレート化の成果サマリ
+        guide_switch_date = "2026-04-10"  # guide優先に切替えた日
+        pre_switch = [t for t in tracking_data if t.get("published_date", "") < guide_switch_date]
+        post_switch = [t for t in tracking_data if t.get("published_date", "") >= guide_switch_date]
+
+        if pre_switch or post_switch:
+            details.append("")
+            details.append("--- Guide-First Template Effect ---")
+
+            for label, articles in [("Before guide-first", pre_switch), ("After guide-first", post_switch)]:
+                if not articles:
+                    details.append("  [%s] No articles yet" % label)
+                    continue
+                pv = sum(a.get("metrics", {}).get("pageviews", 0) for a in articles)
+                cta = sum(a.get("metrics", {}).get("cta_clicks", 0) for a in articles)
+                cart = sum(a.get("metrics", {}).get("add_to_cart", 0) for a in articles)
+                cta_rate = cta / max(pv, 1) * 100
+                details.append("  [%s] %d articles, pv:%d, cta:%d (%.1f%%), cart:%d" % (
+                    label, len(articles), pv, cta, cta_rate, cart))
+
+            if pre_switch and post_switch:
+                pre_cta_rate = sum(a.get("metrics", {}).get("cta_clicks", 0) for a in pre_switch) / max(sum(a.get("metrics", {}).get("pageviews", 0) for a in pre_switch), 1) * 100
+                post_cta_rate = sum(a.get("metrics", {}).get("cta_clicks", 0) for a in post_switch) / max(sum(a.get("metrics", {}).get("pageviews", 0) for a in post_switch), 1) * 100
+                if post_cta_rate > pre_cta_rate:
+                    details.append("  IMPROVED: CTA rate %.1f%% → %.1f%%" % (pre_cta_rate, post_cta_rate))
+                else:
+                    details.append("  Change: %.1f%% → %.1f%%" % (pre_cta_rate, post_cta_rate))
+
+        # single_review vs guide の差の推移
+        if type_cart and "guide" in type_cart and "single_review" in type_cart:
+            g = type_cart["guide"]
+            s = type_cart["single_review"]
+            g_rate = g["total_cart"] / max(g["total_pv"], 1) * 100
+            s_rate = s["total_cart"] / max(s["total_pv"], 1) * 100
+            gap = g_rate - s_rate
+            details.append("")
+            details.append("--- guide vs single_review Gap ---")
+            details.append("  guide cart rate: %.1f%% | single_review: %.1f%% | gap: %.1fpp" % (g_rate, s_rate, gap))
+            if abs(gap) < 0.5:
+                details.append("  Gap NARROWING — single_review absorbing guide elements")
+            elif gap > 0:
+                details.append("  guide still leads — continue guide-first strategy")
 
         # guide型の7日推移表示
         try:
