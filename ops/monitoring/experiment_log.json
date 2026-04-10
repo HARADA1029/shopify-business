@@ -1,0 +1,92 @@
+{
+  "experiments": [
+    {
+      "id": "EXP-260408-001",
+      "target": "Trading Cards category activation",
+      "change": "Activated 5 draft Trading Cards to test demand",
+      "start_date": "2026-04-08",
+      "end_date": "2026-04-22",
+      "period_days": 14,
+      "success_condition": "1+ sale or 50+ views on Trading Cards",
+      "source_agent": "catalog-migration-planner",
+      "status": "running",
+      "result": null,
+      "decision": null,
+      "metrics_before": {
+        "trading_cards_active": 4
+      },
+      "metrics_after": {}
+    },
+    {
+      "id": "EXP-260408-002",
+      "target": "Trust block on product pages",
+      "change": "Added About This Item block to all 43 products",
+      "start_date": "2026-04-08",
+      "end_date": "2026-04-22",
+      "period_days": 14,
+      "success_condition": "Cart add rate improvement",
+      "source_agent": "store-setup",
+      "status": "running",
+      "result": null,
+      "decision": null,
+      "metrics_before": {
+        "trust_block": false
+      },
+      "metrics_after": {}
+    },
+    {
+      "id": "EXP-260409-003",
+      "target": "Pinterest as traffic source",
+      "change": "Created 7 category boards, daily pin posting planned",
+      "start_date": "2026-04-09",
+      "end_date": "2026-04-23",
+      "period_days": 14,
+      "success_condition": "100+ impressions or 5+ clicks from Pinterest",
+      "source_agent": "sns-manager",
+      "status": "running",
+      "result": null,
+      "decision": null,
+      "metrics_before": {
+        "pinterest_traffic": 0
+      },
+      "metrics_after": {}
+    },
+    {
+      "id": "EXP-260409-004",
+      "target": "Electronic Toys category expansion",
+      "change": "Activated 5 Tamagotchi products + collector guide article + SNS posts planned",
+      "start_date": "2026-04-09",
+      "end_date": "2026-04-23",
+      "period_days": 14,
+      "success_condition": "50+ views on Electronic Toys or 1+ sale",
+      "source_agent": "catalog-migration-planner",
+      "status": "running",
+      "result": null,
+      "decision": null,
+      "metrics_before": {
+        "electronic_toys_active": 2,
+        "electronic_toys_views": 0
+      },
+      "metrics_after": {}
+    },
+    {
+      "id": "EXP-260410-005",
+      "target": "Plush category expansion",
+      "change": "Activated 5 Plush products + blog article + SNS posts",
+      "start_date": "2026-04-10",
+      "end_date": "2026-04-24",
+      "period_days": 14,
+      "success_condition": "50+ views or 1+ sale on Plush products",
+      "source_agent": "catalog-migration-planner",
+      "status": "running",
+      "result": null,
+      "decision": null,
+      "metrics_before": {
+        "plush_active": 3
+      },
+      "metrics_after": {}
+    }
+  ],
+  "completed": [],
+  "last_updated": "2026-04-10"
+}

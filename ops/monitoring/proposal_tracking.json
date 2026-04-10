@@ -1,0 +1,260 @@
+{
+  "proposals": [
+    {
+      "id": "P-260402-init01",
+      "message_hash": "init01",
+      "date": "2026-04-02",
+      "agent": "store-setup",
+      "type": "page_improvement",
+      "message": "Trust badges on all product pages",
+      "score": 20,
+      "status": "adopted",
+      "adopted_date": "2026-04-08",
+      "result": "success",
+      "result_date": "2026-04-08",
+      "next_action": "Monitor click-through impact"
+    },
+    {
+      "id": "P-260402-init02",
+      "message_hash": "init02",
+      "date": "2026-04-02",
+      "agent": "growth-foundation",
+      "type": "analytics_based",
+      "message": "GA4 e-commerce events setup",
+      "score": 22,
+      "status": "adopted",
+      "adopted_date": "2026-04-08",
+      "result": "success",
+      "result_date": "2026-04-08",
+      "next_action": "Use GA4 data for product PDCA"
+    },
+    {
+      "id": "P-260402-init03",
+      "message_hash": "init03",
+      "date": "2026-04-06",
+      "agent": "catalog-migration-planner",
+      "type": "category_gap",
+      "message": "Trading Cards: activate 5 drafts",
+      "score": 18,
+      "status": "adopted",
+      "adopted_date": "2026-04-08",
+      "result": "success",
+      "result_date": "2026-04-08",
+      "next_action": "Monitor Trading Cards sales performance"
+    },
+    {
+      "id": "P-260402-init04",
+      "message_hash": "init04",
+      "date": "2026-04-06",
+      "agent": "content-strategist",
+      "type": "internal_link",
+      "message": "Internal links between related articles",
+      "score": 16,
+      "status": "adopted",
+      "adopted_date": "2026-04-08",
+      "result": "success",
+      "result_date": "2026-04-08",
+      "next_action": "Add more cross-category links"
+    },
+    {
+      "id": "P-260406-init05",
+      "message_hash": "init05",
+      "date": "2026-04-06",
+      "agent": "content-strategist",
+      "type": "article_theme",
+      "message": "Top 5 Rare Pokemon Cards from Japan",
+      "score": 20,
+      "status": "pending",
+      "adopted_date": null,
+      "result": null,
+      "result_date": null,
+      "next_action": null
+    },
+    {
+      "id": "P-260406-init06",
+      "message_hash": "init06",
+      "date": "2026-04-06",
+      "agent": "sns-manager",
+      "type": "sns_post",
+      "message": "Pokemon Lugia Legend SNS post",
+      "score": 15,
+      "status": "pending",
+      "adopted_date": null,
+      "result": null,
+      "result_date": null,
+      "next_action": null
+    },
+    {
+      "id": "P-260408-init07",
+      "message_hash": "init07",
+      "date": "2026-04-08",
+      "agent": "store-setup",
+      "type": "page_improvement",
+      "message": "Shipping/Refund policies via GraphQL",
+      "score": 18,
+      "status": "adopted",
+      "adopted_date": "2026-04-08",
+      "result": "success",
+      "result_date": "2026-04-08",
+      "next_action": "Verify policies display on storefront"
+    },
+    {
+      "id": "P-260408-init08",
+      "message_hash": "init08",
+      "date": "2026-04-08",
+      "agent": "growth-foundation",
+      "type": "page_improvement",
+      "message": "Collection SEO (Homepage + Sale)",
+      "score": 17,
+      "status": "adopted",
+      "adopted_date": "2026-04-08",
+      "result": "success",
+      "result_date": "2026-04-08",
+      "next_action": "Monitor Search Console impressions change"
+    },
+    {
+      "id": "P-260409-et01",
+      "message_hash": "et01",
+      "date": "2026-04-09",
+      "agent": "catalog-migration-planner",
+      "type": "category_gap",
+      "message": "Electronic Toys: activate 5 Tamagotchi drafts",
+      "score": 20,
+      "status": "adopted",
+      "adopted_date": "2026-04-09",
+      "result": "success",
+      "result_date": "2026-04-09",
+      "next_action": "Monitor Electronic Toys views and sales for 14 days"
+    },
+    {
+      "id": "P-260409-et02",
+      "message_hash": "et02",
+      "date": "2026-04-09",
+      "agent": "content-strategist",
+      "type": "article_theme",
+      "message": "Tamagotchi Collector Guide blog article",
+      "score": 18,
+      "status": "adopted",
+      "adopted_date": "2026-04-09",
+      "result": "success",
+      "result_date": "2026-04-09",
+      "next_action": "Track article pageviews and Shopify referrals via UTM"
+    },
+    {
+      "id": "P-260409-pg01",
+      "message_hash": "pg01",
+      "date": "2026-04-09",
+      "agent": "store-setup",
+      "type": "page_improvement",
+      "message": "Product page trust/description improvement: 13 products updated",
+      "score": 20,
+      "status": "adopted",
+      "adopted_date": "2026-04-09",
+      "result": "success",
+      "result_date": "2026-04-09",
+      "next_action": "Monitor bounce rate and add-to-cart rate changes via GA4"
+    },
+    {
+      "id": "P-260409-ps01",
+      "message_hash": "ps01",
+      "date": "2026-04-09",
+      "agent": "price-auditor",
+      "type": "sales_based",
+      "message": "eBay price sync: 2 products updated (Madoka, Solo Leveling)",
+      "score": 18,
+      "status": "adopted",
+      "adopted_date": "2026-04-09",
+      "result": "success",
+      "result_date": "2026-04-09",
+      "next_action": "Continue daily price sync via GitHub Actions"
+    },
+    {
+      "id": "P-260410-pl01",
+      "message_hash": "pl01",
+      "date": "2026-04-10",
+      "agent": "catalog-migration-planner",
+      "type": "category_gap",
+      "message": "Plush: activate 5 drafts (3->8)",
+      "score": 20,
+      "status": "adopted",
+      "adopted_date": "2026-04-10",
+      "result": "success",
+      "result_date": "2026-04-10",
+      "next_action": "Monitor Plush views/sales for 14 days"
+    },
+    {
+      "id": "P-260410-pl02",
+      "message_hash": "pl02",
+      "date": "2026-04-10",
+      "agent": "content-strategist",
+      "type": "article_theme",
+      "message": "Plush collector guide blog article",
+      "score": 18,
+      "status": "adopted",
+      "adopted_date": "2026-04-10",
+      "result": "success",
+      "result_date": "2026-04-10",
+      "next_action": "Track article views via GA4"
+    },
+    {
+      "id": "P-260410-sp01",
+      "message_hash": "sp01",
+      "date": "2026-04-10",
+      "agent": "store-setup",
+      "type": "page_improvement",
+      "message": "Shipping/Refund policy pages restored (were 404)",
+      "score": 16,
+      "status": "adopted",
+      "adopted_date": "2026-04-10",
+      "result": "success",
+      "result_date": "2026-04-10",
+      "next_action": "Monitor customer trust metrics"
+    }
+  ],
+  "summary": {
+    "total": 15,
+    "adopted": 13,
+    "rejected": 0,
+    "pending": 2,
+    "success": 13,
+    "failed": 0,
+    "accuracy_by_type": {
+      "page_improvement": {
+        "proposed": 4,
+        "adopted": 4,
+        "success": 4
+      },
+      "analytics_based": {
+        "proposed": 1,
+        "adopted": 1,
+        "success": 1
+      },
+      "category_gap": {
+        "proposed": 2,
+        "adopted": 2,
+        "success": 2
+      },
+      "internal_link": {
+        "proposed": 1,
+        "adopted": 1,
+        "success": 1
+      },
+      "article_theme": {
+        "proposed": 2,
+        "adopted": 1,
+        "success": 1
+      },
+      "sns_post": {
+        "proposed": 1,
+        "adopted": 0,
+        "success": 0
+      },
+      "sales_based": {
+        "proposed": 1,
+        "adopted": 1,
+        "success": 1
+      }
+    },
+    "last_updated": "2026-04-10"
+  }
+}

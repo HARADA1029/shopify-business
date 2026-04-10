@@ -101,12 +101,22 @@ def track_adopted_products(products):
         elif item.get("purchases", 0) > 0:
             evaluations["success"].append(item)
             item["status"] = "success"
+        elif item.get("cart_adds", 0) > 0:
+            evaluations["reaction_no_sale"].append(item)
+            item["status"] = "cart_no_sale"
+            item["weak_reason"] = "Cart added but not purchased: check checkout flow/shipping cost"
         elif item.get("views", 0) > 10 or item.get("clicks", 0) > 5:
             evaluations["reaction_no_sale"].append(item)
             item["status"] = "reaction_no_sale"
+            item["weak_reason"] = "Views/clicks but no cart: check price/description/images"
+        elif item.get("views", 0) > 0:
+            evaluations["weak"].append(item)
+            item["status"] = "weak"
+            item["weak_reason"] = "Low views: check SEO title/tags/collection placement"
         else:
             evaluations["weak"].append(item)
             item["status"] = "weak"
+            item["weak_reason"] = "Zero views: check if product is in collection/navigation"
 
     # レポート生成
     summary = []
@@ -114,12 +124,18 @@ def track_adopted_products(products):
     summary.append("Tracking: %d products" % total)
     if evaluations["success"]:
         summary.append("Success: %d (sold on Shopify)" % len(evaluations["success"]))
+        for item in evaluations["success"][:2]:
+            summary.append("  -> %s [%s] purchase confirmed" % (item["title"][:35], item["product_type"]))
     if evaluations["reaction_no_sale"]:
         summary.append("Viewed but not sold: %d (page improvement needed)" % len(evaluations["reaction_no_sale"]))
         for item in evaluations["reaction_no_sale"][:2]:
-            summary.append("  -> %s: consider page/price optimization" % item["title"][:40])
+            summary.append("  -> %s: %s" % (item["title"][:35], item.get("weak_reason", "check page")[:50]))
+            summary.append("     views:%d clicks:%d cart:%d" % (
+                item.get("views", 0), item.get("clicks", 0), item.get("cart_adds", 0)))
     if evaluations["weak"]:
         summary.append("Low reaction: %d (review proposal logic)" % len(evaluations["weak"]))
+        for item in evaluations["weak"][:2]:
+            summary.append("  -> %s: %s" % (item["title"][:35], item.get("weak_reason", "unknown")[:50]))
     if evaluations["monitoring"]:
         summary.append("Still monitoring: %d (< 3 days)" % len(evaluations["monitoring"]))
 
@@ -261,6 +277,42 @@ def compare_product_pages(products):
             "details": ["Missing: %s" % f for f in missing_features],
         })
 
+    # 前回比較との差分検出
+    comparison_path = os.path.join(SCRIPT_DIR, "product_comparison_cache.json")
+    current_issues = len(issues)
+    try:
+        if os.path.exists(comparison_path):
+            with open(comparison_path, "r", encoding="utf-8") as f:
+                prev = json.load(f)
+            prev_issues = prev.get("issue_count", 0)
+            prev_product = prev.get("product", "")
+            if prev_product == title[:50]:
+                diff = current_issues - prev_issues
+                if diff < 0:
+                    findings.append({
+                        "type": "info", "agent": "competitive-intelligence",
+                        "message": "Product page improvement: %d issues fixed since last check" % abs(diff),
+                    })
+                elif diff > 0:
+                    findings.append({
+                        "type": "suggestion", "agent": "competitive-intelligence",
+                        "message": "Product page regression: %d new issues since last check" % diff,
+                    })
+    except (json.JSONDecodeError, IOError):
+        pass
+
+    # 今回の結果をキャッシュ
+    try:
+        with open(comparison_path, "w", encoding="utf-8") as f:
+            json.dump({
+                "product": title[:50],
+                "issue_count": current_issues,
+                "date": NOW.strftime("%Y-%m-%d"),
+                "issues": issues[:5],
+            }, f, indent=2, ensure_ascii=False)
+    except IOError:
+        pass
+
     return findings
 
 
@@ -269,8 +321,7 @@ def compare_product_pages(products):
 # ============================================================
 
 def update_learning(log):
-    """事後分析結果を学習に反映する"""
-    # shared_state に成功パターンを蓄積
+    """事後分析結果を学習に反映する（強化版）"""
     shared_state_path = os.path.join(SCRIPT_DIR, "shared_state.json")
     try:
         with open(shared_state_path, "r", encoding="utf-8") as f:
@@ -281,13 +332,40 @@ def update_learning(log):
     adopted = log.get("adopted_products", [])
     success_types = Counter(p.get("product_type", "") for p in adopted if p.get("status") == "success")
     weak_types = Counter(p.get("product_type", "") for p in adopted if p.get("status") == "weak")
+    cart_no_sale = Counter(p.get("product_type", "") for p in adopted if p.get("status") == "cart_no_sale")
+    reaction_types = Counter(p.get("product_type", "") for p in adopted if p.get("status") == "reaction_no_sale")
+
+    # 弱い理由のパターン分析
+    weak_reasons = Counter(p.get("weak_reason", "unknown") for p in adopted if p.get("status") in ("weak", "reaction_no_sale", "cart_no_sale"))
 
     state["adoption_learning"] = {
         "success_categories": dict(success_types),
         "weak_categories": dict(weak_types),
+        "cart_no_sale_categories": dict(cart_no_sale),
+        "reaction_no_sale_categories": dict(reaction_types),
+        "weak_reason_patterns": dict(weak_reasons.most_common(5)),
         "total_tracked": len(adopted),
+        "success_rate": (sum(success_types.values()) / max(len(adopted), 1) * 100),
         "last_updated": NOW.strftime("%Y-%m-%d"),
+        "learning_applied": [
+            "Success types get +2 weight in next proposals",
+            "Weak types get -1 weight",
+            "Cart-no-sale items flagged for page improvement",
+        ],
     }
+
+    # スコアリング重みの自動調整提案
+    if sum(success_types.values()) > 3:
+        # 成功率が高いカテゴリの重みを上げる
+        best_cat = success_types.most_common(1)[0][0] if success_types else ""
+        if best_cat:
+            state.setdefault("weight_adjustments", []).append({
+                "date": NOW.strftime("%Y-%m-%d"),
+                "adjustment": "Increase weight for %s (high success rate)" % best_cat,
+                "reason": "%d successful adoptions" % success_types[best_cat],
+            })
+            # 直近5件のみ保持
+            state["weight_adjustments"] = state["weight_adjustments"][-5:]
 
     try:
         with open(shared_state_path, "w", encoding="utf-8") as f:

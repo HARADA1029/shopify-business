@@ -1,0 +1,50 @@
+{
+  "last_updated": "2026-04-08 15:10",
+  "sales_count": 50,
+  "categories": {
+    "Trading Cards": 14,
+    "Plush": 8,
+    "Figures": 11,
+    "Action Figures": 1,
+    "Other": 10,
+    "K-Pop / Idol": 1,
+    "Video Games": 2,
+    "Media & Books": 3
+  },
+  "franchises": {
+    "pokemon": 13,
+    "attack on titan": 1,
+    "digimon": 1,
+    "power rangers": 2,
+    "one piece": 3,
+    "ghibli": 1
+  },
+  "avg_price": 441.2634,
+  "top_items": [
+    {
+      "title": "Pokemon Card Game Charizard EX TCG Hobby 276/XY-P ",
+      "price": 3752.5,
+      "category": "Trading Cards"
+    },
+    {
+      "title": "Pokemon Card Pikachu Game Battle Festa 2014 Visito",
+      "price": 2612.5,
+      "category": "Trading Cards"
+    },
+    {
+      "title": "Pokemon Card Sky-Splitting Deoxys Lenticular HP80 ",
+      "price": 1406.0,
+      "category": "Trading Cards"
+    },
+    {
+      "title": "Pokemon Card Neo Premium File 3 Celebi Entei Suicu",
+      "price": 1244.5,
+      "category": "Trading Cards"
+    },
+    {
+      "title": "Weekly Shonen Jump 2016 NO11 Demon slayer First Ep",
+      "price": 1150.0,
+      "category": "Other"
+    }
+  ]
+}

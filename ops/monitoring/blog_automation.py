@@ -1,24 +1,25 @@
 # ============================================================
-# ブログ記事自動投稿 + PDCA改善モジュール
+# ブログ記事自動投稿 + PDCA改善 + 画像監査 + カテゴリ監査モジュール
 #
-# 担当: content-strategist (主担当)
-#       growth-foundation (分析)
-#       competitive-intelligence (競合調査)
+# 担当: blog-analyst (主担当), content-strategist, growth-foundation
 #
 # 機能:
 # 1. 記事テーマ候補の抽出
-# 2. 標準テンプレート / テストテンプレートでの記事生成
-# 3. WordPress への下書き投稿
-# 4. 公開記事の分析と改善提案
-# 5. 競合記事の定期リサーチ
-# 6. 改善履歴の保存
+# 2. テンプレート管理
+# 3. 記事品質監査（画像/CTA/構造/内部リンク）
+# 4. 画像監査（アイキャッチ/本文画像/枚数）
+# 5. カテゴリ別監査（商品数/記事数/画像率/リンク率）
+# 6. 投稿後PDCA（記事タイプ別比較）
+# 7. blog_state 蓄積
+# 8. proposal_history / experiments 連携
+# 9. 競合記事リサーチ
 # ============================================================
 
 import json
 import os
 import re
 from datetime import datetime, timezone, timedelta
-from collections import Counter
+from collections import Counter, defaultdict
 
 import requests
 
@@ -32,95 +33,79 @@ BLOG_STATE_FILE = os.path.join(SCRIPT_DIR, "blog_state.json")
 SHOPIFY_URL = "https://hd-toys-store-japan.myshopify.com"
 EBAY_STORE = "https://www.ebay.com/str/hdtoysstore"
 
-# 既存記事から抽出した標準テンプレート構造
+# カテゴリキーワード（商品タイプとブログ記事のマッチング用）
+CATEGORY_KEYWORDS = {
+    "Action Figures": ["action figure", "figuarts", "figma", "bandai", "sentai", "beyblade", "gundam"],
+    "Scale Figures": ["scale figure", "nendoroid", "banpresto", "ichiban kuji", "statue"],
+    "Trading Cards": ["card", "tcg", "pokemon card", "yu-gi-oh", "weiss schwarz"],
+    "Video Games": ["game", "playstation", "nintendo", "console", "gameboy"],
+    "Electronic Toys": ["tamagotchi", "digivice", "digital pet", "electronic"],
+    "Media & Books": ["manga", "book", "dvd", "blu-ray", "art book", "cd"],
+    "Plush & Soft Toys": ["plush", "stuffed", "doll", "mascot", "sylvanian"],
+    "Goods & Accessories": ["goods", "accessory", "bag", "watch", "pen", "copic"],
+}
+
+# テンプレート定義
 STANDARD_TEMPLATE = {
-    "name": "standard",
-    "description": "既存記事に近い標準形式",
-    "structure": [
-        {"type": "intro", "desc": "導入文（商品の魅力を2-3段落で語る）"},
-        {"type": "h2", "title": "Product Details"},
-        {"type": "h3_list", "items": ["Product Name", "Category", "Key Features", "Rarity & Value"]},
-        {"type": "h2", "title": "Background & Context"},
-        {"type": "h3_list", "items": ["Series/Franchise Overview", "Why This Item Is Special"]},
-        {"type": "h2", "title": "Related Items"},
-        {"type": "h3_list", "items": ["Similar Products", "Collection Opportunities"]},
-        {"type": "h2", "title": "Summary"},
-        {"type": "cta", "buttons": ["shopify", "ebay"]},
-    ],
-    "guidelines": {
-        "word_count": "1200-1800",
-        "images": "3-5 (product photos + context images)",
-        "tone": "Informative, collector-friendly, enthusiastic but not pushy",
-        "cta_placement": "End of article, after Summary",
-        "internal_links": "2-3 to related articles",
-    },
+    "name": "standard", "description": "単品レビュー・紹介形式",
+    "article_type": "single_review",
 }
-
-# テストテンプレート A: Top 5 / ランキング形式
-TEST_TEMPLATE_A = {
-    "name": "top5_ranking",
-    "description": "Top 5 ランキング形式（競合で人気の構成）",
-    "structure": [
-        {"type": "intro", "desc": "なぜこのカテゴリが人気なのかを簡潔に"},
-        {"type": "h2", "title": "Top 5 [Category] from Japan"},
-        {"type": "ranked_items", "count": 5, "each": [
-            "Product image", "Product name", "Why it's special",
-            "Price range", "Mini CTA (Shopify/eBay link)",
-        ]},
-        {"type": "h2", "title": "How to Choose"},
-        {"type": "h3_list", "items": ["Condition Guide", "What to Look For", "Price Expectations"]},
-        {"type": "h2", "title": "Where to Buy"},
-        {"type": "cta", "buttons": ["shopify_collection", "ebay"]},
-    ],
-    "guidelines": {
-        "word_count": "1500-2000",
-        "images": "5-7 (one per ranked item + header)",
-        "tone": "Guide-like, helpful, SEO-optimized headings",
-        "cta_placement": "After each item (mini) + end (main)",
-        "experiment_id": "EXP-BLOG-001",
-    },
+TOP5_TEMPLATE = {
+    "name": "top5_ranking", "description": "Top 5 ランキング形式",
+    "article_type": "top5",
 }
-
-# テストテンプレート B: 比較 / vs 形式
-TEST_TEMPLATE_B = {
-    "name": "comparison",
-    "description": "比較記事形式（2-3商品を比較）",
-    "structure": [
-        {"type": "intro", "desc": "比較の目的と対象を明示"},
-        {"type": "h2", "title": "Quick Comparison Table"},
-        {"type": "comparison_table", "columns": ["Feature", "Item A", "Item B"]},
-        {"type": "h2", "title": "Detailed Review: [Item A]"},
-        {"type": "h3_list", "items": ["Design", "Condition", "Value"]},
-        {"type": "h2", "title": "Detailed Review: [Item B]"},
-        {"type": "h3_list", "items": ["Design", "Condition", "Value"]},
-        {"type": "h2", "title": "Which One Should You Get?"},
-        {"type": "h2", "title": "Where to Buy"},
-        {"type": "cta", "buttons": ["shopify", "ebay"]},
-    ],
-    "guidelines": {
-        "word_count": "1200-1600",
-        "images": "4-6 (both items + comparison shots)",
-        "tone": "Objective, helpful comparison",
-        "cta_placement": "End of article",
-        "experiment_id": "EXP-BLOG-002",
-    },
+COMPARISON_TEMPLATE = {
+    "name": "comparison", "description": "比較記事形式",
+    "article_type": "comparison",
+}
+GUIDE_TEMPLATE = {
+    "name": "beginner_guide", "description": "初心者ガイド形式",
+    "article_type": "guide",
 }
 
 
 def _load_blog_state():
     if not os.path.exists(BLOG_STATE_FILE):
-        return {"articles_generated": [], "experiments": [], "template_scores": {}, "_last_updated": ""}
+        return {
+            "articles_analyzed": [],
+            "image_audit": [],
+            "category_audit": [],
+            "pdca_history": [],
+            "template_scores": {},
+            "_last_updated": "",
+        }
     try:
         with open(BLOG_STATE_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     except (json.JSONDecodeError, IOError):
-        return {"articles_generated": [], "experiments": [], "template_scores": {}, "_last_updated": ""}
+        return {"articles_analyzed": [], "image_audit": [], "category_audit": [], "pdca_history": [], "template_scores": {}, "_last_updated": ""}
 
 
 def _save_blog_state(state):
     state["_last_updated"] = NOW.strftime("%Y-%m-%d")
     with open(BLOG_STATE_FILE, "w", encoding="utf-8") as f:
         json.dump(state, f, indent=2, ensure_ascii=False)
+
+
+def _classify_article_type(title, content):
+    """記事タイプを推定"""
+    t = (str(title) + " " + str(content)[:500]).lower()
+    if any(kw in t for kw in ["top 5", "top 10", "best", "ranking", "must-have"]):
+        return "top5"
+    if any(kw in t for kw in ["vs", "comparison", "compare", "versus", "which"]):
+        return "comparison"
+    if any(kw in t for kw in ["guide", "how to", "beginner", "tips", "getting started"]):
+        return "guide"
+    return "single_review"
+
+
+def _detect_category(title, content):
+    """記事のカテゴリを推定"""
+    text = (str(title) + " " + str(content)[:1000]).lower()
+    for cat, keywords in CATEGORY_KEYWORDS.items():
+        if any(kw in text for kw in keywords):
+            return cat
+    return "Other"
 
 
 # ============================================================
@@ -130,11 +115,9 @@ def _save_blog_state(state):
 def suggest_article_topics(products, wp_posts, wp_categories):
     """Shopify 商品 × WP 記事ギャップから記事テーマを提案"""
     findings = []
-
     if not products:
         return findings
 
-    # WP 記事タイトル
     wp_titles = set()
     for p in wp_posts:
         title = p.get("title", {})
@@ -142,40 +125,28 @@ def suggest_article_topics(products, wp_posts, wp_categories):
             title = title.get("rendered", "")
         wp_titles.add(str(title).lower())
 
-    # 未カバー商品
     uncovered = []
     for p in products:
         title_lower = p["title"].lower()
-        # タイトルの主要単語が WP 記事に含まれるか
         words = [w for w in title_lower.split() if len(w) > 4]
         covered = any(w in " ".join(wp_titles) for w in words[:3])
         if not covered:
             uncovered.append({
-                "title": p["title"],
-                "handle": p["handle"],
-                "type": p.get("product_type", ""),
-                "images": len(p.get("images", [])),
+                "title": p["title"], "handle": p["handle"],
+                "type": p.get("product_type", ""), "images": len(p.get("images", [])),
             })
 
     if uncovered:
-        # カテゴリ別にグループ化
-        by_cat = {}
+        by_cat = defaultdict(list)
         for item in uncovered:
-            cat = item["type"] or "Other"
-            if cat not in by_cat:
-                by_cat[cat] = []
-            by_cat[cat].append(item)
+            by_cat[item["type"] or "Other"].append(item)
 
         details = []
         for cat, items in sorted(by_cat.items(), key=lambda x: -len(x[1])):
             if len(items) >= 2:
-                details.append(
-                    "[%s] Top 5 article: %d uncovered products" % (cat, len(items))
-                )
+                details.append("[%s] Top 5 article: %d uncovered products" % (cat, len(items)))
             for item in items[:1]:
-                details.append(
-                    "[%s] Single review: %s" % (cat, item["title"][:50])
-                )
+                details.append("[%s] Single review: %s" % (cat, item["title"][:50]))
 
         findings.append({
             "type": "action", "agent": "blog-analyst",
@@ -187,17 +158,103 @@ def suggest_article_topics(products, wp_posts, wp_categories):
 
 
 # ============================================================
-# 2. 記事 PDCA 改善判定
+# 2. 画像監査
 # ============================================================
 
-def analyze_article_performance(wp_posts):
-    """既存記事のパフォーマンスを分析して改善提案を生成"""
+def audit_article_images(wp_posts):
+    """全記事の画像状況を監査"""
     findings = []
-
     if not wp_posts:
         return findings
 
-    improvements = []
+    no_image = []
+    few_images = []
+    good_images = []
+    total = 0
+
+    for p in wp_posts:
+        title = p.get("title", {})
+        if isinstance(title, dict):
+            title = title.get("rendered", "")
+
+        content = p.get("content", {})
+        if isinstance(content, dict):
+            content = content.get("rendered", "")
+
+        if not content:
+            continue
+
+        total += 1
+        # アイキャッチ（featured_media）
+        has_featured = p.get("featured_media", 0) > 0
+        # 本文画像
+        img_count = len(re.findall(r'<img', str(content)))
+        # 引用表記
+        has_citation = bool(re.search(r'(source|credit|photo by|image from|©)', str(content).lower()))
+
+        if img_count == 0 and not has_featured:
+            no_image.append({"title": str(title)[:45], "id": p.get("id", 0)})
+        elif img_count < 2:
+            few_images.append({"title": str(title)[:45], "id": p.get("id", 0), "count": img_count, "featured": has_featured})
+        else:
+            good_images.append({"title": str(title)[:45], "count": img_count})
+
+    # サマリ
+    details = [
+        "=== Blog Image Audit (%d articles) ===" % total,
+        "No images: %d articles" % len(no_image),
+        "Few images (1-2): %d articles" % len(few_images),
+        "Good images (3+): %d articles" % len(good_images),
+    ]
+
+    if no_image:
+        details.append("--- No image articles ---")
+        for a in no_image[:5]:
+            details.append("  [ID:%d] %s" % (a["id"], a["title"]))
+
+    if few_images:
+        details.append("--- Few image articles ---")
+        for a in few_images[:5]:
+            details.append("  [ID:%d] %s (%d images, featured:%s)" % (
+                a["id"], a["title"], a["count"], "yes" if a["featured"] else "no"))
+
+    severity = "action" if len(no_image) > 3 else "suggestion" if no_image else "info"
+    findings.append({
+        "type": severity, "agent": "blog-analyst",
+        "message": "Blog image audit: %d no-image, %d few-image, %d good (%d total)" % (
+            len(no_image), len(few_images), len(good_images), total),
+        "details": details,
+    })
+
+    # blog_state に記録
+    state = _load_blog_state()
+    state["image_audit"] = [{
+        "date": NOW.strftime("%Y-%m-%d"),
+        "total": total,
+        "no_image": len(no_image),
+        "few_images": len(few_images),
+        "good_images": len(good_images),
+    }]
+    _save_blog_state(state)
+
+    return findings
+
+
+# ============================================================
+# 3. カテゴリ別監査
+# ============================================================
+
+def audit_categories(products, wp_posts):
+    """カテゴリごとの商品数/記事数/画像率/リンク率を監査"""
+    findings = []
+    if not products:
+        return findings
+
+    # 商品カテゴリ集計
+    product_cats = Counter(p.get("product_type", "Other") for p in products)
+
+    # 記事カテゴリ集計
+    article_cats = defaultdict(lambda: {"count": 0, "with_images": 0, "with_cta": 0, "with_internal_links": 0})
 
     for p in wp_posts:
         title = p.get("title", {})
@@ -207,47 +264,182 @@ def analyze_article_performance(wp_posts):
         if isinstance(content, dict):
             content = content.get("rendered", "")
 
+        cat = _detect_category(title, content)
+        article_cats[cat]["count"] += 1
+
+        if re.findall(r'<img', str(content)):
+            article_cats[cat]["with_images"] += 1
+        if "hd-toys-store-japan" in str(content).lower():
+            article_cats[cat]["with_cta"] += 1
+        if "hd-bodyscience.com" in str(content).lower():
+            article_cats[cat]["with_internal_links"] += 1
+
+    # レポート
+    details = ["=== Category Audit ==="]
+    details.append("%-20s | Prod | Art | Img%% | CTA%% | Link%%" % "Category")
+    details.append("-" * 60)
+
+    all_cats = set(list(product_cats.keys()) + list(article_cats.keys()))
+    gaps = []
+
+    for cat in sorted(all_cats):
+        prod_count = product_cats.get(cat, 0)
+        art = article_cats.get(cat, {"count": 0, "with_images": 0, "with_cta": 0, "with_internal_links": 0})
+        art_count = art["count"]
+        img_rate = (art["with_images"] / art_count * 100) if art_count > 0 else 0
+        cta_rate = (art["with_cta"] / art_count * 100) if art_count > 0 else 0
+        link_rate = (art["with_internal_links"] / art_count * 100) if art_count > 0 else 0
+
+        details.append("%-20s | %4d | %3d | %3.0f%% | %3.0f%% | %3.0f%%" % (
+            cat[:20], prod_count, art_count, img_rate, cta_rate, link_rate))
+
+        # ギャップ検出
+        if prod_count > 0 and art_count == 0:
+            gaps.append("[%s] %d products, 0 articles" % (cat, prod_count))
+        elif prod_count > 3 and art_count < 2:
+            gaps.append("[%s] %d products, only %d articles" % (cat, prod_count, art_count))
+
+    if gaps:
+        details.append("")
+        details.append("--- Category Gaps ---")
+        details.extend(gaps)
+
+    findings.append({
+        "type": "action" if gaps else "info",
+        "agent": "blog-analyst",
+        "message": "Category audit: %d categories, %d gaps found" % (len(all_cats), len(gaps)),
+        "details": details,
+    })
+
+    # blog_state に記録
+    state = _load_blog_state()
+    state["category_audit"] = [{
+        "date": NOW.strftime("%Y-%m-%d"),
+        "categories": {
+            cat: {
+                "products": product_cats.get(cat, 0),
+                "articles": article_cats.get(cat, {}).get("count", 0),
+                "image_rate": round((article_cats.get(cat, {}).get("with_images", 0) / max(article_cats.get(cat, {}).get("count", 1), 1)) * 100),
+                "cta_rate": round((article_cats.get(cat, {}).get("with_cta", 0) / max(article_cats.get(cat, {}).get("count", 1), 1)) * 100),
+            }
+            for cat in all_cats
+        },
+        "gaps": len(gaps),
+    }]
+    _save_blog_state(state)
+
+    return findings
+
+
+# ============================================================
+# 4. 記事品質監査 + 投稿後PDCA
+# ============================================================
+
+def analyze_article_performance(wp_posts):
+    """全記事の品質監査と改善提案"""
+    findings = []
+    if not wp_posts:
+        return findings
+
+    state = _load_blog_state()
+    improvements = []
+    type_stats = defaultdict(lambda: {"count": 0, "avg_words": 0, "total_words": 0, "with_images": 0, "with_cta": 0})
+
+    for p in wp_posts:
+        title = p.get("title", {})
+        if isinstance(title, dict):
+            title = title.get("rendered", "")
+        content = p.get("content", {})
+        if isinstance(content, dict):
+            content = content.get("rendered", "")
         if not content:
             continue
 
         post_id = p.get("id", 0)
         word_count = len(re.sub(r'<[^>]+>', '', content).split())
         has_shopify_cta = "hd-toys-store-japan" in content.lower()
-        has_ebay_link = "ebay.com" in content.lower()
         h2_count = len(re.findall(r'<h2', content))
         img_count = len(re.findall(r'<img', content))
+        has_featured = p.get("featured_media", 0) > 0
+        has_internal_links = "hd-bodyscience.com" in content.lower()
+        article_type = _classify_article_type(title, content)
+
+        # タイプ別集計
+        type_stats[article_type]["count"] += 1
+        type_stats[article_type]["total_words"] += word_count
+        if img_count > 0:
+            type_stats[article_type]["with_images"] += 1
+        if has_shopify_cta:
+            type_stats[article_type]["with_cta"] += 1
 
         # 改善ルール
+        issues = []
         if not has_shopify_cta:
-            improvements.append("[CTA missing] %s -> Add Shopify CTA" % str(title)[:40])
-
+            issues.append("CTA missing")
         if word_count < 500:
-            improvements.append("[Too short] %s (%d words) -> Expand content" % (str(title)[:40], word_count))
-
+            issues.append("Too short (%dw)" % word_count)
         if h2_count < 2:
-            improvements.append("[Few headings] %s (%d H2) -> Add structure" % (str(title)[:40], h2_count))
-
+            issues.append("Few H2 (%d)" % h2_count)
         if img_count == 0:
-            improvements.append("[No images] %s -> Add product images" % str(title)[:40])
+            issues.append("No images")
+        elif img_count < 3:
+            issues.append("Few images (%d)" % img_count)
+        if not has_featured:
+            issues.append("No featured image")
+        if not has_internal_links:
+            issues.append("No internal links")
 
+        if issues:
+            improvements.append("[%s] %s: %s" % (article_type, str(title)[:35], "; ".join(issues)))
+
+    # 改善提案
     if improvements:
         findings.append({
             "type": "action", "agent": "blog-analyst",
             "message": "Blog PDCA: %d articles need improvement" % len(improvements),
-            "details": improvements[:5],
+            "details": improvements[:8],
         })
+
+    # タイプ別比較
+    if type_stats:
+        type_details = ["=== Article Type Comparison ==="]
+        for atype, stats in sorted(type_stats.items()):
+            count = stats["count"]
+            avg_words = stats["total_words"] / count if count > 0 else 0
+            img_rate = stats["with_images"] / count * 100 if count > 0 else 0
+            cta_rate = stats["with_cta"] / count * 100 if count > 0 else 0
+            type_details.append(
+                "[%s] %d articles, avg %dw, %.0f%% images, %.0f%% CTA"
+                % (atype, count, avg_words, img_rate, cta_rate)
+            )
+
+        findings.append({
+            "type": "info", "agent": "blog-analyst",
+            "message": "Article type analysis: %d types, %d total articles" % (len(type_stats), sum(s["count"] for s in type_stats.values())),
+            "details": type_details,
+        })
+
+    # blog_state に PDCA 履歴を蓄積
+    state["pdca_history"].append({
+        "date": NOW.strftime("%Y-%m-%d"),
+        "total_articles": len(wp_posts),
+        "issues_found": len(improvements),
+        "type_stats": {k: {"count": v["count"], "avg_words": round(v["total_words"] / max(v["count"], 1))} for k, v in type_stats.items()},
+    })
+    # 直近30日分のみ
+    state["pdca_history"] = [h for h in state["pdca_history"] if h.get("date", "") >= (NOW - timedelta(days=30)).strftime("%Y-%m-%d")]
+    _save_blog_state(state)
 
     return findings
 
 
 # ============================================================
-# 3. 競合記事リサーチ（軽量版）
+# 5. 競合記事リサーチ
 # ============================================================
 
 def research_competitor_articles():
     """競合ブログの記事構成をリサーチする"""
     findings = []
-
     competitor_blogs = [
         {"name": "Solaris Japan Blog", "url": "https://solarisjapan.com/blogs/news"},
         {"name": "NekoFigs", "url": "https://nekofigs.com/"},
@@ -259,19 +451,14 @@ def research_competitor_articles():
             resp = requests.get(comp["url"], headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
             if resp.status_code == 200:
                 html = resp.text.lower()
-
                 features = {
-                    "has_top_list": any(kw in html for kw in ["top 5", "top 10", "best", "ranking"]),
-                    "has_comparison": any(kw in html for kw in ["vs", "comparison", "compare", "versus"]),
-                    "has_guide": any(kw in html for kw in ["guide", "how to", "beginner", "tips"]),
-                    "has_faq": "faq" in html or "frequently asked" in html,
+                    "top_list": any(kw in html for kw in ["top 5", "top 10", "best", "ranking"]),
+                    "comparison": any(kw in html for kw in ["vs", "comparison", "compare"]),
+                    "guide": any(kw in html for kw in ["guide", "how to", "beginner", "tips"]),
                 }
-
-                active_formats = [k.replace("has_", "") for k, v in features.items() if v]
-                if active_formats:
-                    insights.append(
-                        "%s: uses %s" % (comp["name"], ", ".join(active_formats))
-                    )
+                active = [k for k, v in features.items() if v]
+                if active:
+                    insights.append("%s: uses %s" % (comp["name"], ", ".join(active)))
         except Exception:
             pass
 
@@ -286,130 +473,67 @@ def research_competitor_articles():
 
 
 # ============================================================
-# 4. テンプレート管理
+# 6. テンプレート推奨
 # ============================================================
 
 def get_recommended_template():
     """今日使うべきテンプレートを返す"""
-    state = _load_blog_state()
-    scores = state.get("template_scores", {})
-
-    # デフォルトは標準テンプレート
-    # 週の曜日で切り替え（月水金=標準、火木=テストA、土=テストB）
     day = NOW.weekday()
-    if day in (1, 3):  # 火木
-        return TEST_TEMPLATE_A
-    elif day == 5:  # 土
-        return TEST_TEMPLATE_B
+    if day in (1, 3):
+        return TOP5_TEMPLATE
+    elif day == 5:
+        return COMPARISON_TEMPLATE
+    elif day == 0:
+        return GUIDE_TEMPLATE
     else:
         return STANDARD_TEMPLATE
 
 
 # ============================================================
-# 5. 公開記事の分析と改善提案
+# 7. proposal_history / experiments 連携
 # ============================================================
 
-def analyze_published_articles_deep(wp_posts):
-    """公開記事を詳細分析し、具体的な改善提案を生成する"""
-    findings = []
-    state = _load_blog_state()
+def _sync_to_proposal_tracking(wp_posts):
+    """ブログ関連の結果を proposal_tracking に反映"""
+    tracking_path = os.path.join(SCRIPT_DIR, "proposal_tracking.json")
+    if not os.path.exists(tracking_path):
+        return
 
-    # 自動生成した記事の分析（blog_state に記録されているもの）
-    generated = state.get("articles_generated", [])
-    if not generated:
-        return findings
+    try:
+        with open(tracking_path, "r", encoding="utf-8") as f:
+            tracking = json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return
 
-    analyzed_ids = set(a.get("wp_post_id") for a in state.get("analysis_history", []))
-    improvements = []
-    improvement_actions = []
-
-    for article in generated:
-        wp_id = article.get("wp_post_id", 0)
-        if not wp_id:
-            continue
-
-        # 公開後7日以上経過した記事を分析対象にする
-        from datetime import datetime as _dt
-        try:
-            pub_date = _dt.strptime(article.get("date", ""), "%Y-%m-%d").date()
-            days_since = (NOW.date() - pub_date).days
-        except (ValueError, TypeError):
-            days_since = 0
-
-        if days_since < 1:
-            continue
-
-        # WP から最新の記事データを取得
-        matching = [p for p in wp_posts if p.get("id") == wp_id]
-        if not matching:
-            continue
-
-        post = matching[0]
-        title = post.get("title", {})
+    wp_titles = set()
+    for p in wp_posts:
+        title = p.get("title", {})
         if isinstance(title, dict):
             title = title.get("rendered", "")
-        content = post.get("content", {})
-        if isinstance(content, dict):
-            content = content.get("rendered", "")
+        wp_titles.add(str(title).lower())
 
-        # 構造分析
-        word_count = len(re.sub(r'<[^>]+>', '', content).split())
-        has_shopify = "hd-toys-store-japan" in content.lower()
-        has_ebay = "ebay.com" in content.lower()
-        h2_count = len(re.findall(r'<h2', content))
-        h3_count = len(re.findall(r'<h3', content))
-        img_count = len(re.findall(r'<img', content))
-        internal_links = len(re.findall(r'hd-bodyscience\.com', content))
+    updated = False
+    for proposal in tracking.get("proposals", []):
+        if proposal.get("type") != "article_theme" or proposal.get("status") != "pending":
+            continue
+        msg = proposal.get("message", "").lower()
+        # 提案されたテーマが実際に記事化されたかチェック
+        for wp_title in wp_titles:
+            keywords = [w for w in msg.split() if len(w) > 4][:3]
+            if any(kw in wp_title for kw in keywords):
+                proposal["status"] = "adopted"
+                proposal["adopted_date"] = NOW.strftime("%Y-%m-%d")
+                proposal["result"] = "success"
+                proposal["result_date"] = NOW.strftime("%Y-%m-%d")
+                updated = True
+                break
 
-        # 改善ルール
-        article_improvements = []
-
-        if not has_shopify:
-            article_improvements.append("Add Shopify CTA")
-        if h2_count < 3:
-            article_improvements.append("Add more H2 headings (current: %d)" % h2_count)
-        if img_count < 3:
-            article_improvements.append("Add more images (current: %d)" % img_count)
-        if internal_links < 2:
-            article_improvements.append("Add internal links to related articles")
-        if word_count < 800:
-            article_improvements.append("Expand content (current: %d words)" % word_count)
-        if word_count > 3000:
-            article_improvements.append("Consider trimming (current: %d words, may lose readers)" % word_count)
-
-        if article_improvements:
-            improvements.append({
-                "wp_id": wp_id,
-                "title": str(title)[:50],
-                "days_since_publish": days_since,
-                "issues": article_improvements,
-            })
-
-    if improvements:
-        details = []
-        for imp in improvements[:3]:
-            details.append(
-                "[%dd old] %s: %s" % (
-                    imp["days_since_publish"],
-                    imp["title"],
-                    "; ".join(imp["issues"][:2]),
-                )
-            )
-        findings.append({
-            "type": "action", "agent": "blog-analyst",
-            "message": "Blog improvement: %d published articles need optimization" % len(improvements),
-            "details": details,
-        })
-
-        # 改善履歴を保存
-        state.setdefault("analysis_history", []).append({
-            "date": NOW.strftime("%Y-%m-%d"),
-            "articles_analyzed": len(improvements),
-            "issues_found": sum(len(i["issues"]) for i in improvements),
-        })
-        _save_blog_state(state)
-
-    return findings
+    if updated:
+        tracking["summary"]["adopted"] = sum(1 for p in tracking["proposals"] if p.get("status") == "adopted")
+        tracking["summary"]["success"] = sum(1 for p in tracking["proposals"] if p.get("result") == "success")
+        tracking["summary"]["last_updated"] = NOW.strftime("%Y-%m-%d")
+        with open(tracking_path, "w", encoding="utf-8") as f:
+            json.dump(tracking, f, indent=2, ensure_ascii=False)
 
 
 # ============================================================
@@ -423,20 +547,26 @@ def run_blog_automation(products, wp_posts, wp_categories):
     # 1. 記事テーマ候補
     all_findings.extend(suggest_article_topics(products, wp_posts, wp_categories))
 
-    # 2. 既存記事の PDCA 分析（全記事）
+    # 2. 画像監査
+    all_findings.extend(audit_article_images(wp_posts))
+
+    # 3. カテゴリ別監査
+    all_findings.extend(audit_categories(products, wp_posts))
+
+    # 4. 記事品質監査 + 投稿後PDCA + タイプ別比較
     all_findings.extend(analyze_article_performance(wp_posts))
 
-    # 3. 公開記事の詳細分析（自動生成記事）
-    all_findings.extend(analyze_published_articles_deep(wp_posts))
-
-    # 4. 競合記事リサーチ
+    # 5. 競合記事リサーチ
     all_findings.extend(research_competitor_articles())
 
-    # 5. 今日のテンプレート推奨
+    # 6. テンプレート推奨
     template = get_recommended_template()
     all_findings.append({
         "type": "info", "agent": "content-strategist",
         "message": "Today's article template: %s (%s)" % (template["name"], template["description"]),
     })
+
+    # 7. proposal_tracking 連携
+    _sync_to_proposal_tracking(wp_posts)
 
     return all_findings

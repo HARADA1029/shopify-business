@@ -1,0 +1,37 @@
+{
+  "total_posts": 68,
+  "high_count": 60,
+  "low_count": 8,
+  "human_baseline": {
+    "avg_words": 1336,
+    "avg_images": 19.2,
+    "avg_h2": 7.1,
+    "min_words": 800,
+    "min_images": 3,
+    "min_h2": 3,
+    "requires": [
+      "featured_image",
+      "cta",
+      "categories",
+      "tags",
+      "internal_links"
+    ]
+  },
+  "sample_structure": [
+    "Product Details",
+    "Game: Yakuza 5",
+    "Yakuza Games and Related Items",
+    "Latest Yakuza Title: “Yakuza Kiwami 3 / Yakuza 3 Gaiden: Dark Ties” (Released Feb 12, 2026)",
+    "Summary"
+  ],
+  "low_ids": [
+    4862,
+    4861,
+    4832,
+    709,
+    506,
+    238,
+    65,
+    1
+  ]
+}

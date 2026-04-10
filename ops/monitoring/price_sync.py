@@ -223,16 +223,46 @@ def sync_prices():
     # eBay API からリアルタイム価格を取得
     ebay_prices = _load_ebay_prices(ebay_ids)
     if not ebay_prices:
+        # 失敗理由を特定
+        token = _get_ebay_token()
+        if not token:
+            app_id = os.environ.get("EBAY_APP_ID", "")
+            cert_id = os.environ.get("EBAY_CERT_ID", "")
+            if not app_id or not cert_id:
+                failure_reason = "Credentials missing: EBAY_APP_ID / EBAY_CERT_ID not set in environment"
+                failure_type = "credentials"
+            else:
+                failure_reason = "API authentication failed: eBay OAuth token request rejected (check APP_ID/CERT_ID validity)"
+                failure_type = "auth"
+        elif not ebay_ids:
+            failure_reason = "No eBay SKU mapping: no Shopify variants have EB-xxxxx SKU format"
+            failure_type = "mapping"
+        else:
+            failure_reason = "API request failed: eBay Browse API returned no data (possible rate limit or temporary outage)"
+            failure_type = "api_error"
+
         findings.append({
-            "type": "info", "agent": "price-auditor",
-            "message": "Price sync: eBay price data not available",
+            "type": "suggestion" if failure_type in ("credentials", "auth") else "info",
+            "agent": "price-auditor",
+            "message": "Price sync failed [%s]: %s" % (failure_type, failure_reason[:80]),
+            "details": [
+                "Failure type: %s" % failure_type,
+                "Reason: %s" % failure_reason,
+                "eBay IDs found in Shopify: %d" % len(ebay_ids),
+                "Fallback: CSV price data also not available" if not ebay_prices else "",
+            ],
         })
         return findings
 
     if not products:
         findings.append({
             "type": "info", "agent": "price-auditor",
-            "message": "Price sync: Shopify products not available",
+            "message": "Price sync failed [shopify_api]: Shopify products not available (check SHOPIFY_STORE / access token)",
+            "details": [
+                "Failure type: shopify_api",
+                "SHOPIFY_STORE: %s" % ("set" if os.environ.get("SHOPIFY_STORE") else "not set"),
+                "Token file: %s" % ("exists" if os.path.exists(os.path.join(PROJECT_ROOT, ".shopify_token.json")) else "missing"),
+            ],
         })
         return findings
 

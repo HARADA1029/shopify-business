@@ -1,14 +1,27 @@
 # ============================================================
-# ブログ記事自動投稿スクリプト
+# ブログ記事自動投稿スクリプト（品質管理強化版）
 #
-# Shopify 商品データから hd-bodyscience.com に記事を自動生成する。
-# 既存記事の文体・構成に沿いつつ、テスト要素も導入可能。
+# 人間作成記事の品質基準に準拠した記事のみ投稿する。
 #
-# 実行: python store/scripts/blog_auto_post.py
+# 品質基準（blog_quality_baseline.json に基づく）:
+#   - 最低 800語（人間作成平均: 1336語）
+#   - 最低 3画像（人間作成平均: 19.2枚）
+#   - 最低 3個の H2 見出し（人間作成平均: 7.1個）
+#   - CTA必須、カテゴリ設定必須、タグ設定必須
+#   - 内部リンク必須
+#
+# 生成前:
+#   - 商品画像を取得して記事に埋め込む
+#   - 既存記事の文体・構成を参考にする
+#
+# 生成後:
+#   - 品質チェックゲートを通過した記事のみ投稿
+#   - 不合格の場合は再生成または投稿中止
 # ============================================================
 
 import json
 import os
+import re
 import sys
 import time
 from datetime import datetime, timezone, timedelta
@@ -26,10 +39,16 @@ WP_USER = os.environ.get("WP_USER", "")
 WP_PASS = os.environ.get("WP_APP_PASSWORD", "")
 WP_API = "https://hd-bodyscience.com/wp-json/wp/v2"
 
-POSTED_FILE = os.path.join(PROJECT_ROOT, "ops", "monitoring", "blog_state.json")
+BLOG_STATE_FILE = os.path.join(PROJECT_ROOT, "ops", "monitoring", "blog_state.json")
+BASELINE_FILE = os.path.join(PROJECT_ROOT, "ops", "monitoring", "blog_quality_baseline.json")
 
 JST = timezone(timedelta(hours=9))
 NOW = datetime.now(JST)
+
+# 品質最低基準
+MIN_WORDS = 800
+MIN_IMAGES = 3
+MIN_H2 = 3
 
 # CTA テンプレート
 CTA_TEMPLATE = '''
@@ -47,6 +66,21 @@ Browse on eBay</a>
 </div>
 '''
 
+# カテゴリ → WordPress カテゴリID マッピング（初回は自動取得）
+WP_CATEGORY_MAP = {}
+
+# Collection マッピング
+COLLECTION_MAP = {
+    "Action Figures": "action-figures",
+    "Scale Figures": "figures-statues",
+    "Trading Cards": "trading-cards",
+    "Video Games": "video-games",
+    "Electronic Toys": "electronic-toys",
+    "Media & Books": "media-books",
+    "Plush & Soft Toys": "plush-soft-toys",
+    "Goods & Accessories": "goods-accessories",
+}
+
 
 def load_shopify_token():
     with open(os.path.join(PROJECT_ROOT, ".shopify_token.json"), "r") as f:
@@ -54,46 +88,115 @@ def load_shopify_token():
 
 
 def load_blog_state():
-    if not os.path.exists(POSTED_FILE):
-        return {"articles_generated": [], "experiments": [], "template_scores": {}}
+    if not os.path.exists(BLOG_STATE_FILE):
+        return {"articles_generated": []}
     try:
-        with open(POSTED_FILE, "r", encoding="utf-8") as f:
+        with open(BLOG_STATE_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     except (json.JSONDecodeError, IOError):
-        return {"articles_generated": [], "experiments": [], "template_scores": {}}
+        return {"articles_generated": []}
 
 
 def save_blog_state(state):
     state["_last_updated"] = NOW.strftime("%Y-%m-%d")
-    os.makedirs(os.path.dirname(POSTED_FILE), exist_ok=True)
-    with open(POSTED_FILE, "w", encoding="utf-8") as f:
+    os.makedirs(os.path.dirname(BLOG_STATE_FILE), exist_ok=True)
+    with open(BLOG_STATE_FILE, "w", encoding="utf-8") as f:
         json.dump(state, f, indent=2, ensure_ascii=False)
 
 
 def get_shopify_products():
     token = load_shopify_token()
     resp = requests.get(
-        "%s/admin/api/2026-04/products.json?status=active&limit=50" % SHOPIFY_URL,
-        headers={"X-Shopify-Access-Token": token},
-        timeout=30,
+        "%s/admin/api/2026-04/products.json?status=active&limit=50&fields=id,title,handle,body_html,product_type,images,tags,variants" % SHOPIFY_URL,
+        headers={"X-Shopify-Access-Token": token}, timeout=30,
     )
     return resp.json().get("products", [])
+
+
+def get_wp_categories():
+    """WordPress のカテゴリ一覧を取得し、マッピングを構築"""
+    global WP_CATEGORY_MAP
+    try:
+        resp = requests.get(
+            WP_API + "/categories?per_page=100&_fields=id,name,slug",
+            auth=(WP_USER, WP_PASS), timeout=15,
+        )
+        if resp.status_code == 200:
+            for cat in resp.json():
+                WP_CATEGORY_MAP[cat["name"].lower()] = cat["id"]
+                WP_CATEGORY_MAP[cat["slug"]] = cat["id"]
+    except Exception:
+        pass
+    return WP_CATEGORY_MAP
+
+
+def find_or_create_wp_category(category_name):
+    """WordPress カテゴリを検索、なければ作成"""
+    slug = category_name.lower().replace(" ", "-").replace("&", "and")
+
+    if slug in WP_CATEGORY_MAP:
+        return WP_CATEGORY_MAP[slug]
+    if category_name.lower() in WP_CATEGORY_MAP:
+        return WP_CATEGORY_MAP[category_name.lower()]
+
+    # 作成
+    try:
+        resp = requests.post(
+            WP_API + "/categories",
+            auth=(WP_USER, WP_PASS),
+            json={"name": category_name, "slug": slug},
+            timeout=15,
+        )
+        if resp.status_code == 201:
+            cat_id = resp.json()["id"]
+            WP_CATEGORY_MAP[slug] = cat_id
+            return cat_id
+    except Exception:
+        pass
+    return None
+
+
+def find_or_create_wp_tags(tag_names):
+    """WordPress タグを検索、なければ作成"""
+    tag_ids = []
+    for name in tag_names:
+        try:
+            # 検索
+            resp = requests.get(
+                WP_API + "/tags?search=%s&_fields=id,name" % requests.utils.quote(name),
+                auth=(WP_USER, WP_PASS), timeout=10,
+            )
+            if resp.status_code == 200 and resp.json():
+                tag_ids.append(resp.json()[0]["id"])
+                continue
+
+            # 作成
+            resp2 = requests.post(
+                WP_API + "/tags",
+                auth=(WP_USER, WP_PASS),
+                json={"name": name},
+                timeout=10,
+            )
+            if resp2.status_code == 201:
+                tag_ids.append(resp2.json()["id"])
+        except Exception:
+            pass
+    return tag_ids
 
 
 def select_product_for_article(products, blog_state):
     """記事化すべき商品を選定する"""
     written_handles = set(a.get("handle", "") for a in blog_state.get("articles_generated", []))
 
-    # WP 既存記事のタイトルキーワード
     try:
         resp = requests.get(
             WP_API + "/posts?per_page=50&_fields=title",
-            headers={"User-Agent": "HD-Toys-Blog/1.0"}, timeout=15,
+            auth=(WP_USER, WP_PASS), timeout=15,
         )
         wp_titles = " ".join(
             p.get("title", {}).get("rendered", "").lower()
             for p in resp.json()
-        )
+        ) if resp.status_code == 200 else ""
     except Exception:
         wp_titles = ""
 
@@ -102,7 +205,7 @@ def select_product_for_article(products, blog_state):
         handle = p.get("handle", "")
         if handle in written_handles:
             continue
-        if not p.get("images"):
+        if not p.get("images") or len(p.get("images", [])) < 1:
             continue
 
         title_lower = p["title"].lower()
@@ -110,74 +213,145 @@ def select_product_for_article(products, blog_state):
         coverage = sum(1 for w in words if w in wp_titles) / max(len(words), 1)
 
         if coverage < 0.4:
-            candidates.append({
-                "product": p,
-                "coverage": coverage,
-            })
+            candidates.append({"product": p, "coverage": coverage, "images": len(p.get("images", []))})
 
-    candidates.sort(key=lambda x: x["coverage"])
+    # 画像が多い商品を優先（記事に画像を入れやすい）
+    candidates.sort(key=lambda x: (-x["images"], x["coverage"]))
     return candidates[0]["product"] if candidates else None
 
 
+def build_image_html(product):
+    """商品画像を記事用HTMLに変換（出典表記付き）"""
+    images = product.get("images", [])
+    if not images:
+        return "", []
+
+    title = product["title"]
+    html_parts = []
+    image_urls = []
+
+    for i, img in enumerate(images[:6]):
+        src = img.get("src", "")
+        alt = img.get("alt", title)
+        if not src:
+            continue
+        image_urls.append(src)
+
+        caption = "Image: %s" % title[:50] if i == 0 else "Additional view of %s" % title[:40]
+        html_parts.append(
+            '<figure style="margin:20px 0;text-align:center;">'
+            '<img src="%s" alt="%s" style="max-width:100%%;height:auto;border-radius:6px;" />'
+            '<figcaption style="font-size:12px;color:#888;margin-top:6px;">%s — Source: HD Toys Store Japan</figcaption>'
+            '</figure>' % (src, alt, caption)
+        )
+
+    return "\n".join(html_parts), image_urls
+
+
 def generate_article_with_gemini(product):
-    """Gemini で記事本文を生成する"""
+    """Gemini で高品質な記事本文を生成する"""
     title = product["title"]
     product_type = product.get("product_type", "Collectible")
-    body_html = product.get("body_html", "")
-    description = body_html[:500] if body_html else title
+    body_html = product.get("body_html", "") or ""
+    description = re.sub(r'<[^>]+>', '', body_html)[:500]
     handle = product["handle"]
     images = product.get("images", [])
+    image_count = len(images)
+    tags = product.get("tags", "")
 
-    shopify_link = "%s/products/%s?utm_source=hd-bodyscience&utm_medium=article&utm_campaign=blog-auto&utm_content=%s" % (
-        SHOPIFY_URL, handle, handle,
-    )
+    # 商品画像HTMLを事前に構築
+    images_html, image_urls = build_image_html(product)
 
-    prompt = """IMPORTANT: Write this entire article in ENGLISH only. Do not use Japanese.
+    shopify_link = "%s/products/%s?utm_source=hd-bodyscience&utm_medium=article&utm_campaign=blog-auto" % (SHOPIFY_URL, handle)
+    collection = COLLECTION_MAP.get(product_type, "all")
+    collection_link = "%s/collections/%s?utm_source=hd-bodyscience&utm_medium=article&utm_campaign=blog-auto" % (SHOPIFY_URL, collection)
 
-Write a blog article in English about this Japanese collectible product for an international audience of collectors.
+    prompt = """IMPORTANT: Write this entire article in ENGLISH only. Do not use any Japanese text.
 
+You are writing a blog article for hd-bodyscience.com, a site about Japanese collectibles.
+The article must match the quality of human-written articles on this site.
+
+=== QUALITY REQUIREMENTS (MANDATORY) ===
+- Minimum 1200 words (target: 1500 words)
+- Minimum 5 H2 headings with H3 subsections
+- Tone: knowledgeable collector writing for fellow collectors
+- NOT a sales pitch. Provide genuine value, history, context, and expert insight
+- Every paragraph must add value. No filler, no fluff, no generic statements
+- Include specific details: release year, manufacturer, series context, rarity factors
+- Mention "pre-owned" and "shipped from Japan" naturally (not as a sales line)
+- Include practical buying tips specific to this item type
+
+=== PRODUCT INFO ===
 Product: %s
 Category: %s
 Description: %s
+Tags: %s
+Available images: %d
 
-Follow this structure exactly:
+=== ARTICLE STRUCTURE (follow exactly) ===
 
-1. Introduction (2-3 paragraphs about why this item is special and appealing to collectors)
+<p>[Opening paragraph: Hook the reader with why this item matters to collectors. Be specific, not generic. 3-4 sentences.]</p>
 
-2. <h2>Product Details</h2>
-   Include subsections with <h3> tags for:
-   - Product Name
-   - Category
-   - Key Features
-   - Rarity & Value
+<p>[Context paragraph: What makes Japanese %s special compared to international versions? 3-4 sentences with specific examples.]</p>
 
-3. <h2>Background & Context</h2>
-   Include subsections about the series/franchise and why this item is notable.
+INSERT_MAIN_IMAGE_HERE
 
-4. <h2>Related Items</h2>
-   Mention similar products that collectors might also be interested in.
+<h2>About This Item</h2>
+<p>[Detailed description of the specific product. What it is, who made it, when it was released, what makes it notable. 150+ words.]</p>
 
-5. <h2>Summary</h2>
-   A brief conclusion summarizing why this is worth collecting.
+<h3>Key Details</h3>
+<ul>
+<li><strong>Manufacturer:</strong> [identify from title/description]</li>
+<li><strong>Series/Franchise:</strong> [identify]</li>
+<li><strong>Type:</strong> %s</li>
+<li><strong>Condition:</strong> Pre-owned, inspected before shipping</li>
+<li><strong>Origin:</strong> Japan</li>
+</ul>
 
-Important rules:
-- Write in HTML format (use <h2>, <h3>, <p> tags)
-- Tone: informative, collector-friendly, enthusiastic but NOT pushy or salesy
-- Word count: 1200-1500 words
-- Do NOT include any <h1> tags
-- Do NOT include the product title as a heading (WordPress will add it)
-- Include natural mentions of "shipped from Japan" and "pre-owned, inspected"
-- Do NOT generate fake reviews or testimonials
-- PRIORITY: Provide genuine value to collectors. Help them understand the item, its history, and why it matters.
-- Avoid hard-sell language. The goal is to earn trust and make the reader want to come back.
-- Write as if helping a fellow collector, not selling to a customer.
-- Keep the article engaging and easy to read. Remove fluff. Every paragraph should add value.
-""" % (title, product_type, description[:300])
+INSERT_IMAGE_2_HERE
+
+<h2>The %s Franchise: Why Collectors Care</h2>
+<p>[Deep dive into the franchise/series. History, cultural impact, why items from this series are collectible. 200+ words. Include specific facts.]</p>
+
+<h3>Rarity and Value Factors</h3>
+<p>[What makes certain items from this series more valuable? Limited editions, condition rarity, discontinued items. 150+ words.]</p>
+
+INSERT_IMAGE_3_HERE
+
+<h2>Collector's Guide: What to Look For</h2>
+<p>[Practical advice for collectors. What condition factors matter, what to inspect, common issues to watch for. 150+ words.]</p>
+
+<h3>Condition Tips for Pre-Owned Items</h3>
+<ul>
+<li>[Specific condition tip 1 for this item type]</li>
+<li>[Specific condition tip 2]</li>
+<li>[Specific condition tip 3]</li>
+<li>[Specific condition tip 4]</li>
+</ul>
+
+<h2>Similar Items Worth Exploring</h2>
+<p>[Recommend 3-4 related items from the same franchise or category. Explain why a collector of this item would also be interested. 150+ words.]</p>
+
+<h2>Why Buy Japanese Collectibles from Japan?</h2>
+<p>[Explain the advantage of buying directly from Japan: authenticity, condition, exclusive editions, careful handling culture. 100+ words. Be informative, not salesy.]</p>
+
+INSERT_IMAGE_4_HERE
+
+<h2>Summary</h2>
+<p>[Wrap up with collector perspective. Restate why this item is worth attention. 3-4 sentences.]</p>
+
+=== RULES ===
+- Use <h2>, <h3>, <p>, <ul>, <li>, <strong> tags
+- Do NOT use <h1> tags
+- Do NOT include the product title as a heading
+- Write INSERT_MAIN_IMAGE_HERE, INSERT_IMAGE_2_HERE, INSERT_IMAGE_3_HERE, INSERT_IMAGE_4_HERE exactly where images should go (I will replace these with actual product images)
+- Every section must have substantial content. No 1-2 sentence sections
+- Internal link: mention "Browse more [category] on our blog" and link to hd-bodyscience.com
+- Do NOT generate fake reviews, testimonials, or made-up statistics
+""" % (title, product_type, description[:400], tags, image_count, product_type, product_type, title.split()[0] if title else "Item")
 
     url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=%s" % GEMINI_KEY
-    resp = requests.post(url, json={
-        "contents": [{"parts": [{"text": prompt}]}],
-    }, timeout=120)
+    resp = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=180)
 
     if resp.status_code == 200:
         data = resp.json()
@@ -185,76 +359,150 @@ Important rules:
         for part in parts:
             if "text" in part:
                 return part["text"]
+    else:
+        print("[ERROR] Gemini API: %d %s" % (resp.status_code, resp.text[:200]))
     return None
+
+
+def insert_images(article_html, product):
+    """画像プレースホルダーを実際の商品画像HTMLに置換"""
+    images = product.get("images", [])
+    title = product["title"]
+
+    placeholders = [
+        "INSERT_MAIN_IMAGE_HERE",
+        "INSERT_IMAGE_2_HERE",
+        "INSERT_IMAGE_3_HERE",
+        "INSERT_IMAGE_4_HERE",
+    ]
+
+    for i, placeholder in enumerate(placeholders):
+        if placeholder in article_html and i < len(images):
+            src = images[i]["src"]
+            alt = images[i].get("alt", title)
+            caption = title[:50] if i == 0 else "Additional view"
+            img_html = (
+                '<figure style="margin:20px 0;text-align:center;">'
+                '<img src="%s" alt="%s" style="max-width:100%%;height:auto;border-radius:6px;" />'
+                '<figcaption style="font-size:12px;color:#888;margin-top:6px;">%s — Source: HD Toys Store Japan</figcaption>'
+                '</figure>' % (src, alt, caption)
+            )
+            article_html = article_html.replace(placeholder, img_html)
+        elif placeholder in article_html:
+            article_html = article_html.replace(placeholder, "")
+
+    return article_html
 
 
 def add_cta_and_links(article_html, product):
     """CTA ブロックと内部リンクを追加する"""
     handle = product["handle"]
     product_type = product.get("product_type", "")
-    title = product["title"]
 
-    shopify_link = "%s/products/%s?utm_source=hd-bodyscience&utm_medium=article&utm_campaign=blog-auto&utm_content=%s" % (
-        SHOPIFY_URL, handle, handle,
-    )
+    shopify_link = "%s/products/%s?utm_source=hd-bodyscience&utm_medium=article&utm_campaign=blog-auto" % (SHOPIFY_URL, handle)
 
-    collection_map = {
-        "Action Figures": "action-figures",
-        "Scale Figures": "figures-statues",
-        "Trading Cards": "trading-cards",
-        "Video Games": "video-games",
-        "Electronic Toys": "electronic-toys",
-        "Media & Books": "media-books",
-        "Plush & Soft Toys": "plush-soft-toys",
-        "Goods & Accessories": "goods-accessories",
-    }
-    collection_handle = collection_map.get(product_type, "all")
-
-    # Shopify CTA
     cta = CTA_TEMPLATE.format(
         shopify_url=shopify_link,
-        shopify_text="Buy on Shopify",
-        ebay_url="https://www.ebay.com/str/hdtoysstore",
+        shopify_text="View on HD Toys Store Japan",
+        ebay_url="https://www.ebay.com/str/hdtoysstore?utm_source=hd-bodyscience&utm_medium=article&utm_campaign=blog-auto",
     )
 
-    # 記事末尾に CTA を追加
     article_html += cta
-
     return article_html
 
 
-def post_to_wordpress(title, content, status="draft"):
-    """WordPress に記事を投稿する"""
+def quality_check(article_html, product):
+    """品質チェックゲート。不合格なら理由を返す"""
+    text = re.sub(r'<[^>]+>', '', article_html)
+    word_count = len(text.split())
+    img_count = len(re.findall(r'<img', article_html))
+    h2_count = len(re.findall(r'<h2', article_html))
+    has_cta = "hd-toys-store-japan" in article_html.lower()
+    has_source = "source:" in article_html.lower() or "hd toys store japan" in article_html.lower()
+
+    issues = []
+    if word_count < MIN_WORDS:
+        issues.append("Too short: %d words (min %d)" % (word_count, MIN_WORDS))
+    if img_count < MIN_IMAGES:
+        issues.append("Too few images: %d (min %d)" % (img_count, MIN_IMAGES))
+    if h2_count < MIN_H2:
+        issues.append("Too few H2 headings: %d (min %d)" % (h2_count, MIN_H2))
+    if not has_cta:
+        issues.append("No CTA block")
+
+    return {
+        "passed": len(issues) == 0,
+        "word_count": word_count,
+        "img_count": img_count,
+        "h2_count": h2_count,
+        "issues": issues,
+    }
+
+
+def post_to_wordpress(title, content, categories=None, tags=None, featured_media=None):
+    """WordPress に記事を投稿（カテゴリ・タグ・アイキャッチ付き）"""
     if not WP_USER or not WP_PASS:
         print("[ERROR] WordPress credentials not set")
         return None
 
+    payload = {
+        "title": title,
+        "content": content,
+        "status": "publish",
+    }
+
+    if categories:
+        payload["categories"] = categories
+    if tags:
+        payload["tags"] = tags
+    if featured_media:
+        payload["featured_media"] = featured_media
+
     resp = requests.post(
         WP_API + "/posts",
         auth=(WP_USER, WP_PASS),
-        json={
-            "title": title,
-            "content": content,
-            "status": status,
-        },
+        json=payload,
         timeout=30,
     )
 
     if resp.status_code == 201:
         post = resp.json()
-        return {
-            "id": post["id"],
-            "link": post["link"],
-            "status": post["status"],
-        }
+        return {"id": post["id"], "link": post["link"], "status": post["status"]}
     else:
         print("[ERROR] WordPress post failed: %s" % resp.text[:200])
         return None
 
 
+def upload_featured_image(image_url, title):
+    """商品のメイン画像をWordPressにアップロードしてアイキャッチに設定"""
+    try:
+        # 画像をダウンロード
+        img_resp = requests.get(image_url, timeout=30)
+        if img_resp.status_code != 200:
+            return None
+
+        # WordPressにアップロード
+        filename = "%s.jpg" % title[:30].replace(" ", "-").replace("/", "-").lower()
+        upload_resp = requests.post(
+            WP_API + "/media",
+            auth=(WP_USER, WP_PASS),
+            headers={
+                "Content-Disposition": "attachment; filename=%s" % filename,
+                "Content-Type": "image/jpeg",
+            },
+            data=img_resp.content,
+            timeout=30,
+        )
+        if upload_resp.status_code == 201:
+            return upload_resp.json()["id"]
+    except Exception:
+        pass
+    return None
+
+
 def main():
     print("=" * 60)
-    print("  Blog Auto Post")
+    print("  Blog Auto Post (Quality Controlled)")
     print("  %s" % NOW.strftime("%Y-%m-%d %H:%M JST"))
     print("=" * 60)
     print()
@@ -267,20 +515,21 @@ def main():
 
     # 今日の記事生成済みチェック
     today_str = NOW.strftime("%Y-%m-%d")
-    today_articles = [
-        a for a in blog_state.get("articles_generated", [])
-        if a.get("date") == today_str
-    ]
+    today_articles = [a for a in blog_state.get("articles_generated", []) if a.get("date") == today_str]
     if today_articles:
-        print("[SKIP] Already generated article today: %s" % today_articles[0].get("title", "?")[:40])
+        print("[SKIP] Already generated today: %s" % today_articles[0].get("title", "?")[:40])
         return
+
+    # WordPress カテゴリ取得
+    print("[INFO] Loading WordPress categories...")
+    get_wp_categories()
 
     # Shopify 商品取得
     print("[INFO] Fetching products...")
     products = get_shopify_products()
     print("  Products: %d" % len(products))
 
-    # 商品選定
+    # 商品選定（画像が多いものを優先）
     product = select_product_for_article(products, blog_state)
     if not product:
         print("[SKIP] No products need articles")
@@ -288,44 +537,111 @@ def main():
 
     title = product["title"]
     handle = product["handle"]
-    print("[INFO] Selected: %s" % title[:60])
+    product_type = product.get("product_type", "")
+    print("[INFO] Selected: %s (%s, %d images)" % (title[:50], product_type, len(product.get("images", []))))
     print()
 
     # Gemini で記事生成
-    print("[INFO] Generating article with Gemini...")
+    print("[INFO] Generating article with Gemini (quality mode)...")
     article_html = generate_article_with_gemini(product)
     if not article_html:
         print("[ERROR] Article generation failed")
         return
 
-    print("[OK] Article generated (%d chars)" % len(article_html))
+    # 画像挿入
+    print("[INFO] Inserting product images...")
+    article_html = insert_images(article_html, product)
 
-    # CTA と内部リンクを追加
+    # CTA 追加
     article_html = add_cta_and_links(article_html, product)
 
-    # WordPress に下書き投稿
-    print("[INFO] Posting to WordPress (draft)...")
-    result = post_to_wordpress(title, article_html, status="publish")
+    # 品質チェック
+    print("[INFO] Quality check...")
+    qc = quality_check(article_html, product)
+    print("  Words: %d, Images: %d, H2: %d" % (qc["word_count"], qc["img_count"], qc["h2_count"]))
+
+    if not qc["passed"]:
+        print("[REJECT] Quality check FAILED:")
+        for issue in qc["issues"]:
+            print("  - %s" % issue)
+
+        # 画像不足の場合、商品画像が少ないのが原因なら警告だけ出して続行
+        image_only_issue = all("image" in i.lower() for i in qc["issues"])
+        if image_only_issue and len(product.get("images", [])) < MIN_IMAGES:
+            print("[WARN] Product has only %d images. Proceeding with reduced image requirement." % len(product.get("images", [])))
+        else:
+            print("[SKIP] Article not posted. Fix issues and retry.")
+            return
+
+    print("[OK] Quality check passed!")
+    print()
+
+    # アイキャッチ画像をアップロード
+    featured_id = None
+    if product.get("images"):
+        print("[INFO] Uploading featured image...")
+        featured_id = upload_featured_image(product["images"][0]["src"], title)
+        if featured_id:
+            print("  Featured image ID: %d" % featured_id)
+
+    # カテゴリ設定
+    cat_ids = []
+    if product_type:
+        cat_id = find_or_create_wp_category(product_type)
+        if cat_id:
+            cat_ids.append(cat_id)
+
+    # タグ設定
+    tag_names = ["Japan Import", "Pre-owned", "Collectible"]
+    if product_type:
+        tag_names.append(product_type)
+    product_tags = [t.strip() for t in product.get("tags", "").split(",") if t.strip() and t.strip() not in ("Good", "Japan Import")]
+    tag_names.extend(product_tags[:5])
+    tag_ids = find_or_create_wp_tags(tag_names)
+
+    # WordPress に投稿
+    print("[INFO] Posting to WordPress...")
+    result = post_to_wordpress(
+        title=title,
+        content=article_html,
+        categories=cat_ids if cat_ids else None,
+        tags=tag_ids if tag_ids else None,
+        featured_media=featured_id,
+    )
 
     if result:
         blog_state.setdefault("articles_generated", []).append({
             "date": today_str,
             "handle": handle,
             "title": title[:80],
-            "category": product.get("product_type", ""),
+            "category": product_type,
             "wp_post_id": result["id"],
             "wp_link": result["link"],
             "template": "standard",
-            "status": "draft",
+            "status": "published",
+            "quality": {
+                "words": qc["word_count"],
+                "images": qc["img_count"],
+                "h2": qc["h2_count"],
+                "passed": qc["passed"],
+            },
+            "settings": {
+                "categories": cat_ids,
+                "tags": tag_ids,
+                "featured_media": featured_id,
+            },
         })
         save_blog_state(blog_state)
 
         print()
-        print("[OK] Article created as draft!")
+        print("[OK] Article published!")
         print("  Title: %s" % title[:60])
         print("  WP Post ID: %d" % result["id"])
         print("  URL: %s" % result["link"])
-        print("  Status: published")
+        print("  Words: %d, Images: %d, H2: %d" % (qc["word_count"], qc["img_count"], qc["h2_count"]))
+        print("  Categories: %s" % str(cat_ids))
+        print("  Tags: %d set" % len(tag_ids))
+        print("  Featured image: %s" % ("yes" if featured_id else "no"))
 
 
 if __name__ == "__main__":

@@ -297,6 +297,12 @@ def main():
             "media_id": result.get("media_id", ""),
             "permalink": result.get("permalink", ""),
             "platform": "instagram",
+            "media_type": "image",
+            "has_product_link": True,
+            "product_url": "%s/products/%s?utm_source=instagram&utm_medium=social&utm_campaign=daily-post" % (SHOPIFY_URL, handle),
+            "image_url": image_url,
+            "posted_at": NOW.strftime("%Y-%m-%d %H:%M"),
+            "engagement": {"views": 0, "likes": 0, "comments": 0, "saves": 0, "clicks": 0, "profile_visits": 0, "shopify_visits": 0},
         })
         save_posted(posted_data)
 

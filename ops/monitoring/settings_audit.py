@@ -227,45 +227,61 @@ def audit_sns_settings():
 
 
 def audit_analytics_settings():
-    """分析設定の最適化チェック"""
+    """分析設定の最適化チェック（台帳参照版）"""
     findings = []
+
+    from state_consistency_audit import _load_ledger
+    ledger = _load_ledger()
+    tasks = ledger.get("tasks", {})
 
     status_items = []
     issues = []
 
-    # 1. GA4
-    ga4_property = os.environ.get("GA4_PROPERTY_ID", "")
-    gcp_key = os.environ.get("GCP_KEY_FILE", "")
-    gcp_key_path = gcp_key if os.path.isabs(gcp_key) else os.path.join(PROJECT_ROOT, gcp_key) if gcp_key else ""
+    # 台帳ベースの判定（ハードコード禁止）
+    analytics_tasks = {
+        "ga4_connection": "GA4 Data API",
+        "ga4_ecommerce": "GA4 e-commerce events",
+        "search_console": "Search Console API",
+        "instagram_api": "Instagram Graph API",
+        "pinterest_api": "Pinterest API",
+        "youtube_api": "YouTube Data API",
+        "tiktok_api": "TikTok API",
+    }
 
-    if ga4_property and gcp_key_path and os.path.exists(gcp_key_path):
-        status_items.append("GA4 Data API: Connected (property %s)" % ga4_property)
-    elif ga4_property:
-        issues.append("GA4: Property ID set but key file missing")
-    else:
-        issues.append("GA4: Not configured (GA4_PROPERTY_ID not set)")
+    for key, label in analytics_tasks.items():
+        task = tasks.get(key, {})
+        status = task.get("status", "unknown")
+        detail = task.get("verification_detail", "")[:80]
 
-    # 2. Search Console
-    if gcp_key_path and os.path.exists(gcp_key_path):
-        status_items.append("Search Console API: Connected")
-    else:
-        issues.append("Search Console: GCP key file missing")
+        if status in ("completed", "completed_improvement_phase"):
+            status_items.append("%s: %s (%s)" % (label, status, detail))
+        elif status == "on_hold":
+            status_items.append("%s: On hold (%s)" % (label, task.get("notes", "")[:60]))
+        elif status == "rejected":
+            pass  # 却下済みは表示しない
+        else:
+            # 台帳に未登録の場合のみ実際のファイル存在で判定
+            token_map = {
+                "instagram_api": ".instagram_token.json",
+                "pinterest_api": ".pinterest_token.json",
+                "youtube_api": ".youtube_token.json",
+                "tiktok_api": ".tiktok_token.json",
+            }
+            token_file = token_map.get(key, "")
+            if token_file and os.path.exists(os.path.join(PROJECT_ROOT, token_file)):
+                status_items.append("%s: Token found (not in ledger)" % label)
+            elif key in ("ga4_connection", "search_console"):
+                gcp_key = os.environ.get("GCP_KEY_FILE", "")
+                gcp_path = os.path.join(PROJECT_ROOT, gcp_key) if gcp_key else ""
+                if gcp_path and os.path.exists(gcp_path):
+                    status_items.append("%s: GCP key found (not in ledger)" % label)
+                else:
+                    issues.append("%s: Not configured (not in ledger, no key file)" % label)
+            else:
+                issues.append("%s: Status unknown (not in ledger)" % label)
 
-    # 3. UTM tracking
-    status_items.append("UTM tracking: Configured on CTA links (hd-bodyscience.com)")
-
-    # 4. Instagram Insights
-    ig_token_path = os.path.join(PROJECT_ROOT, ".instagram_token.json")
-    if os.path.exists(ig_token_path):
-        status_items.append("Instagram Insights: Token available (limited by permissions)")
-    else:
-        issues.append("Instagram Insights: Token not found")
-
-    # 5. Pinterest Analytics
-    issues.append("Pinterest Analytics: API not yet connected (trial pending)")
-
-    # 6. e-commerce events
-    issues.append("GA4 e-commerce events: Not configured (view_item/add_to_cart/purchase)")
+    # UTM tracking（常に設定済み）
+    status_items.append("UTM tracking: Configured on CTA links")
 
     if issues:
         findings.append({

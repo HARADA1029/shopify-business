@@ -1,0 +1,144 @@
+{
+  "last_sync": "2026-04-10 08:47",
+  "changes": [
+    {
+      "date": "2026-04-07",
+      "product_id": 8039251640389,
+      "variant_id": 44844417744965,
+      "title": "Pokemon Card Lugia Legend 029 030 Soul Silver Coll",
+      "ebay_id": "125918398765",
+      "ebay_price": 560.0,
+      "shopify_old_price": 337.0,
+      "shopify_new_price": 510,
+      "compare_at_old": 370.0,
+      "compare_at_new": 560,
+      "rule_applied": "eBay x 0.910",
+      "profitability": {
+        "shopify_fee": 15.09,
+        "estimated_cost": 336.0,
+        "net_profit": 158.91,
+        "profit_margin": 0.312,
+        "is_profitable": true
+      },
+      "needs_review": false,
+      "review_reasons": [],
+      "status": "updated"
+    },
+    {
+      "date": "2026-04-07",
+      "product_id": 8039253377093,
+      "variant_id": 44844424200261,
+      "title": "Pokemon Post Card Set Munch Mimikyu Pikachu Eevee ",
+      "ebay_id": "125923555456",
+      "ebay_price": 1010.0,
+      "shopify_old_price": 500.0,
+      "shopify_new_price": 919,
+      "compare_at_old": 550.0,
+      "compare_at_new": 1010,
+      "rule_applied": "eBay x 0.910",
+      "profitability": {
+        "shopify_fee": 26.95,
+        "estimated_cost": 606.0,
+        "net_profit": 286.05,
+        "profit_margin": 0.311,
+        "is_profitable": true
+      },
+      "needs_review": false,
+      "review_reasons": [],
+      "status": "updated"
+    },
+    {
+      "date": "2026-04-09",
+      "product_id": 8039262847045,
+      "variant_id": 44844446318661,
+      "title": "Puella Magi Madoka Magica Ultimate Madoka Figure 1",
+      "ebay_id": "126465586021",
+      "ebay_price": 410.0,
+      "shopify_old_price": 353.0,
+      "shopify_new_price": 373,
+      "compare_at_old": 388.0,
+      "compare_at_new": 410,
+      "rule_applied": "eBay x 0.910",
+      "profitability": {
+        "shopify_fee": 11.12,
+        "estimated_cost": 246.0,
+        "net_profit": 115.88,
+        "profit_margin": 0.311,
+        "is_profitable": true
+      },
+      "needs_review": false,
+      "review_reasons": [],
+      "status": "updated"
+    },
+    {
+      "date": "2026-04-09",
+      "product_id": 8039255408709,
+      "variant_id": 44844430393413,
+      "title": "Solo Leveling Vol. 1 - 19 Complete set Comic manga",
+      "ebay_id": "126241377328",
+      "ebay_price": 264.0,
+      "shopify_old_price": 264.0,
+      "shopify_new_price": 240,
+      "compare_at_old": 290.0,
+      "compare_at_new": 264,
+      "rule_applied": "eBay x 0.910",
+      "profitability": {
+        "shopify_fee": 7.26,
+        "estimated_cost": 158.4,
+        "net_profit": 74.34,
+        "profit_margin": 0.31,
+        "is_profitable": true
+      },
+      "needs_review": false,
+      "review_reasons": [],
+      "status": "updated"
+    },
+    {
+      "date": "2026-04-10",
+      "product_id": 8039263207493,
+      "variant_id": 44844449169477,
+      "title": "Kaizoku Sentai Gokaiger Gokai Cellular MEMORIAL ED",
+      "ebay_id": "126395782706",
+      "ebay_price": 520.0,
+      "shopify_old_price": 783.0,
+      "shopify_new_price": 473,
+      "compare_at_old": 860.0,
+      "compare_at_new": 520,
+      "rule_applied": "eBay x 0.910",
+      "profitability": {
+        "shopify_fee": 14.02,
+        "estimated_cost": 312.0,
+        "net_profit": 146.98,
+        "profit_margin": 0.311,
+        "is_profitable": true
+      },
+      "needs_review": false,
+      "review_reasons": [],
+      "status": "updated"
+    },
+    {
+      "date": "2026-04-10",
+      "product_id": 8039253377093,
+      "variant_id": 44844424200261,
+      "title": "Pokemon Post Card Set Munch Mimikyu Pikachu Eevee ",
+      "ebay_id": "125923555456",
+      "ebay_price": 950.0,
+      "shopify_old_price": 919.0,
+      "shopify_new_price": 864,
+      "compare_at_old": 1010.0,
+      "compare_at_new": 950,
+      "rule_applied": "eBay x 0.910",
+      "profitability": {
+        "shopify_fee": 25.36,
+        "estimated_cost": 570.0,
+        "net_profit": 268.64,
+        "profit_margin": 0.311,
+        "is_profitable": true
+      },
+      "needs_review": false,
+      "review_reasons": [],
+      "status": "updated"
+    }
+  ],
+  "alerts": []
+}

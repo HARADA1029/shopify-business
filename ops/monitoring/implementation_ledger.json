@@ -1,0 +1,246 @@
+{
+  "_comment": "実装状態の単一台帳。全ての状態判定はこのファイルを参照する。",
+  "tasks": {
+    "ga4_ecommerce": {
+      "name": "GA4 e-commerce events",
+      "status": "completed",
+      "target": "Shopify Custom Pixel",
+      "implemented_date": "2026-04-08",
+      "updated_date": "2026-04-09",
+      "verification": "api_response",
+      "verification_detail": "Custom Pixel created via Shopify GraphQL. view_item/add_to_cart/purchase events configured.",
+      "agent": "growth-foundation",
+      "notes": "Data accumulation in progress. Events configured but GA4 data needs 24-48h to appear."
+    },
+    "ga4_connection": {
+      "name": "GA4 Data API connection",
+      "status": "completed",
+      "target": "GA4 Property 273352603",
+      "implemented_date": "2026-04-06",
+      "updated_date": "2026-04-10",
+      "verification": "api_response",
+      "verification_detail": "GCP service account key configured. GA4_PROPERTY_ID set. Data retrieval confirmed.",
+      "agent": "growth-foundation",
+      "notes": "Runs in GitHub Actions with GCP_KEY secret."
+    },
+    "search_console": {
+      "name": "Search Console API connection",
+      "status": "completed",
+      "target": "hd-toys-store-japan.myshopify.com",
+      "implemented_date": "2026-04-06",
+      "updated_date": "2026-04-10",
+      "verification": "api_response",
+      "verification_detail": "Same GCP service account. Impressions/clicks data retrieved.",
+      "agent": "growth-foundation",
+      "notes": ""
+    },
+    "pinterest_api": {
+      "name": "Pinterest API connection",
+      "status": "completed_improvement_phase",
+      "target": "Pinterest API v5",
+      "implemented_date": "2026-04-09",
+      "updated_date": "2026-04-10",
+      "verification": "state_file",
+      "verification_detail": ".pinterest_token.json exists. Trial access approved. 7 boards created. Standard access pending review.",
+      "agent": "sns-manager",
+      "notes": "Pin creation requires Standard access (under review). Read operations work."
+    },
+    "instagram_api": {
+      "name": "Instagram Graph API connection",
+      "status": "completed",
+      "target": "Instagram Business Account",
+      "implemented_date": "2026-04-06",
+      "updated_date": "2026-04-10",
+      "verification": "state_file",
+      "verification_detail": ".instagram_token.json exists. Posts published successfully.",
+      "agent": "sns-manager",
+      "notes": "Extended insights permissions limited. Basic posting works."
+    },
+    "youtube_api": {
+      "name": "YouTube Data API connection",
+      "status": "completed",
+      "target": "YouTube channel",
+      "implemented_date": "2026-04-07",
+      "updated_date": "2026-04-09",
+      "verification": "state_file",
+      "verification_detail": ".youtube_token.json exists.",
+      "agent": "sns-manager",
+      "notes": ""
+    },
+    "tiktok_api": {
+      "name": "TikTok API connection",
+      "status": "on_hold",
+      "target": "TikTok Content Posting API",
+      "implemented_date": null,
+      "updated_date": "2026-04-09",
+      "verification": "manual",
+      "verification_detail": "App review submitted with ToS URL fix. Awaiting review result.",
+      "agent": "sns-manager",
+      "notes": "Sandbox OAuth successful. Production awaiting app review."
+    },
+    "ebay_price_sync": {
+      "name": "eBay to Shopify price sync",
+      "status": "completed",
+      "target": "eBay Browse API + Shopify Admin API",
+      "implemented_date": "2026-04-08",
+      "updated_date": "2026-04-10",
+      "verification": "api_response",
+      "verification_detail": "eBay token obtained. 58 SKUs mapped (EB-xxxxx). 4 price changes logged.",
+      "agent": "price-auditor",
+      "notes": "Runs in daily inspection. price_sync_log.json tracks changes."
+    },
+    "ebay_image_sync": {
+      "name": "eBay to Shopify image sync",
+      "status": "completed",
+      "target": "eBay Browse API + Shopify Admin API",
+      "implemented_date": "2026-04-09",
+      "updated_date": "2026-04-09",
+      "verification": "state_file",
+      "verification_detail": "image_sync.py created. Checks products with <3 images. 291 images added on first run.",
+      "agent": "catalog-migration-planner",
+      "notes": "Only checks products with fewer than 3 images to reduce API load."
+    },
+    "wordpress_api": {
+      "name": "WordPress REST API connection",
+      "status": "completed",
+      "target": "hd-bodyscience.com",
+      "implemented_date": "2026-04-06",
+      "updated_date": "2026-04-10",
+      "verification": "api_response",
+      "verification_detail": "WP_USER/WP_APP_PASSWORD configured. GET/POST/DELETE all confirmed working.",
+      "agent": "content-strategist",
+      "notes": "Intermittent timeouts due to server instability (XServer). Not a config issue."
+    },
+    "shipping_policy": {
+      "name": "Shipping policy page",
+      "status": "completed",
+      "target": "Shopify /policies/shipping-policy",
+      "implemented_date": "2026-04-10",
+      "updated_date": "2026-04-10",
+      "verification": "public_page",
+      "verification_detail": "HTTP 200, 1011 chars. Set via shopPolicyUpdate GraphQL mutation.",
+      "agent": "store-setup",
+      "notes": ""
+    },
+    "refund_policy": {
+      "name": "Refund policy page",
+      "status": "completed",
+      "target": "Shopify /policies/refund-policy",
+      "implemented_date": "2026-04-10",
+      "updated_date": "2026-04-10",
+      "verification": "public_page",
+      "verification_detail": "HTTP 200, 1142 chars. Set via shopPolicyUpdate GraphQL mutation.",
+      "agent": "store-setup",
+      "notes": ""
+    },
+    "privacy_policy": {
+      "name": "Privacy policy page",
+      "status": "completed",
+      "target": "Shopify /policies/privacy-policy",
+      "implemented_date": "2026-04-09",
+      "updated_date": "2026-04-09",
+      "verification": "public_page",
+      "verification_detail": "HTTP 200. Includes Pinterest API and TikTok API sections.",
+      "agent": "store-setup",
+      "notes": ""
+    },
+    "trust_badges": {
+      "name": "Trust badges on product pages",
+      "status": "completed",
+      "target": "All active Shopify products",
+      "implemented_date": "2026-04-08",
+      "updated_date": "2026-04-10",
+      "verification": "api_response",
+      "verification_detail": "All 58 active products have condition/trust language. Verified via bulk audit.",
+      "agent": "store-setup",
+      "notes": ""
+    },
+    "product_descriptions": {
+      "name": "Product description quality",
+      "status": "completed_improvement_phase",
+      "target": "All active Shopify products",
+      "implemented_date": "2026-04-09",
+      "updated_date": "2026-04-10",
+      "verification": "api_response",
+      "verification_detail": "All 58 products have 50+ words. Top 12 high-value products expanded to 191-273w. Some Gemini 503 skipped.",
+      "agent": "store-setup",
+      "notes": "3 high-value products still need expansion (Gemini 503 retry needed)."
+    },
+    "blog_auto_post": {
+      "name": "Blog auto post with quality control",
+      "status": "completed",
+      "target": "blog_auto_post.py + GitHub Actions",
+      "implemented_date": "2026-04-09",
+      "updated_date": "2026-04-10",
+      "verification": "setting_file",
+      "verification_detail": "Quality gate: min 800w, 3 images, 3 H2. Gemini prompt redesigned. Featured image/category/tag auto-set.",
+      "agent": "content-strategist",
+      "notes": ""
+    },
+    "sns_auto_post": {
+      "name": "SNS auto posting (IG + FB)",
+      "status": "completed",
+      "target": "GitHub Actions workflows",
+      "implemented_date": "2026-04-06",
+      "updated_date": "2026-04-10",
+      "verification": "api_response",
+      "verification_detail": "Instagram and Facebook auto-post confirmed. Video posting via separate workflow.",
+      "agent": "sns-manager",
+      "notes": ""
+    },
+    "collection_setup": {
+      "name": "Collection and menu setup",
+      "status": "completed",
+      "target": "8 smart collections + main menu",
+      "implemented_date": "2026-04-09",
+      "updated_date": "2026-04-09",
+      "verification": "api_response",
+      "verification_detail": "8 categories in menu: Action Figures, Figures & Statues, Electronic Toys, Trading Cards, Video Games, Media & Books, Plush & Soft Toys, Goods & Accessories.",
+      "agent": "store-setup",
+      "notes": ""
+    },
+    "self_learning_system": {
+      "name": "Self-learning system (proposals/experiments/research)",
+      "status": "completed_improvement_phase",
+      "target": "proposal_tracking + experiment_log + research_log",
+      "implemented_date": "2026-04-09",
+      "updated_date": "2026-04-10",
+      "verification": "state_file",
+      "verification_detail": "15 proposals, 5 experiments, 7 research entries. Accumulating daily.",
+      "agent": "self-learning",
+      "notes": "Accuracy evaluation needs more data (target: 30+ proposals)."
+    },
+    "bug_audit": {
+      "name": "Bug and anomaly audit system",
+      "status": "completed",
+      "target": "bug_audit.py in daily inspection",
+      "implemented_date": "2026-04-09",
+      "updated_date": "2026-04-09",
+      "verification": "setting_file",
+      "verification_detail": "5-area audit: API/automation/data/quality/agent. Recurrence tracking via bug_audit_log.json.",
+      "agent": "project-orchestrator",
+      "notes": ""
+    },
+    "review_system": {
+      "name": "Shopify review system (Judge.me)",
+      "status": "rejected",
+      "target": "N/A",
+      "implemented_date": null,
+      "updated_date": "2026-04-09",
+      "verification": "manual",
+      "verification_detail": "Rejected by Harada. Reason: eBay negative feedback management fatigue. Will reconsider when sales stabilize.",
+      "agent": "store-setup",
+      "notes": "Do NOT re-propose."
+    }
+  },
+  "status_definitions": {
+    "completed": "実施済み。正常稼働中。",
+    "completed_improvement_phase": "実施済み。基盤は完了しているが活用改善は継続中。",
+    "in_progress": "進行中。実装作業中。",
+    "pending": "未着手。",
+    "on_hold": "保留。外部審査待ちなど。",
+    "rejected": "却下。再提案しない。",
+    "monitoring": "再発監視中。"
+  },
+  "last_updated": "2026-04-10"
+}

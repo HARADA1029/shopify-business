@@ -198,6 +198,12 @@ def main():
             "category": category,
             "post_id": result.get("post_id", ""),
             "platform": "facebook",
+            "media_type": "image",
+            "has_product_link": True,
+            "product_url": shopify_link,
+            "image_url": image_url,
+            "posted_at": NOW.strftime("%Y-%m-%d %H:%M"),
+            "engagement": {"impressions": 0, "clicks": 0, "likes": 0, "comments": 0, "shares": 0, "shopify_visits": 0},
         })
         save_posted(posted_data)
         print()

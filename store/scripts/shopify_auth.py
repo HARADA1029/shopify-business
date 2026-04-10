@@ -46,6 +46,7 @@ SCOPES = ",".join([
     "read_themes", "write_themes",
     "read_publications", "write_publications",
     "read_online_store_navigation", "write_online_store_navigation",
+    "read_legal_policies", "write_legal_policies",
 ])
 
 # 認証コードを受け取るためのグローバル変数
@@ -139,15 +140,24 @@ def main():
     existing = load_token()
     if existing and "access_token" in existing:
         print("[INFO] 保存済みトークンが見つかりました。検証中...")
-        ok, resp = test_token(existing["access_token"])
-        if ok:
-            print("[OK] トークンは有効です。")
-            shop = resp.json().get("shop", {})
-            print(f"  ストア名: {shop.get('name', '?')}")
-            print(f"  ドメイン: {shop.get('myshopify_domain', '?')}")
-            return
+        # スコープが不足している場合は再認証
+        saved_scope = existing.get("scope", "")
+        required_scopes = set(SCOPES.split(","))
+        current_scopes = set(saved_scope.split(",")) if saved_scope else set()
+        missing = required_scopes - current_scopes
+        if missing:
+            print(f"[INFO] スコープ不足: {', '.join(missing)}")
+            print("[INFO] 再認証を行います。")
         else:
-            print("[INFO] トークンが無効です。再認証を行います。")
+            ok, resp = test_token(existing["access_token"])
+            if ok:
+                print("[OK] トークンは有効です。")
+                shop = resp.json().get("shop", {})
+                print(f"  ストア名: {shop.get('name', '?')}")
+                print(f"  ドメイン: {shop.get('myshopify_domain', '?')}")
+                return
+            else:
+                print("[INFO] トークンが無効です。再認証を行います。")
 
     # --- OAuth フロー ---
     print(f"[INFO] ローカルサーバーをポート {PORT} で起動します...")

@@ -1,0 +1,538 @@
+{
+  "insights": [
+    {
+      "date": "2026-04-07",
+      "source": "catalog-migration-planner",
+      "insight": "New Shopify candidates available -> Use for SNS posts and articles",
+      "for_agents": [
+        "sns-manager",
+        "content-strategist"
+      ]
+    },
+    {
+      "date": "2026-04-07",
+      "source": "growth-foundation",
+      "insight": "Weekly focus: [Score:17] Weekly focus: Trading Cards",
+      "for_agents": [
+        "all"
+      ]
+    },
+    {
+      "date": "2026-04-07",
+      "source": "catalog-migration-planner",
+      "insight": "New Shopify candidates available -> Use for SNS posts and articles",
+      "for_agents": [
+        "sns-manager",
+        "content-strategist"
+      ]
+    },
+    {
+      "date": "2026-04-07",
+      "source": "growth-foundation",
+      "insight": "Weekly focus: [Score:17] Weekly focus: Trading Cards",
+      "for_agents": [
+        "all"
+      ]
+    },
+    {
+      "date": "2026-04-07",
+      "source": "catalog-migration-planner",
+      "insight": "New Shopify candidates available -> Use for SNS posts and articles",
+      "for_agents": [
+        "sns-manager",
+        "content-strategist"
+      ]
+    },
+    {
+      "date": "2026-04-07",
+      "source": "growth-foundation",
+      "insight": "Weekly focus: [Score:17] Weekly focus: Trading Cards",
+      "for_agents": [
+        "all"
+      ]
+    },
+    {
+      "date": "2026-04-07",
+      "source": "catalog-migration-planner",
+      "insight": "New Shopify candidates available -> Use for SNS posts and articles",
+      "for_agents": [
+        "sns-manager",
+        "content-strategist"
+      ]
+    },
+    {
+      "date": "2026-04-07",
+      "source": "growth-foundation",
+      "insight": "Weekly focus: [Score:17] Weekly focus: Trading Cards",
+      "for_agents": [
+        "all"
+      ]
+    },
+    {
+      "date": "2026-04-07",
+      "source": "catalog-migration-planner",
+      "insight": "New Shopify candidates available -> Use for SNS posts and articles",
+      "for_agents": [
+        "sns-manager",
+        "content-strategist"
+      ]
+    },
+    {
+      "date": "2026-04-07",
+      "source": "growth-foundation",
+      "insight": "Weekly focus: [Score:17] Weekly focus: Trading Cards",
+      "for_agents": [
+        "all"
+      ]
+    },
+    {
+      "date": "2026-04-07",
+      "source": "catalog-migration-planner",
+      "insight": "New Shopify candidates available -> Use for SNS posts and articles",
+      "for_agents": [
+        "sns-manager",
+        "content-strategist"
+      ]
+    },
+    {
+      "date": "2026-04-07",
+      "source": "growth-foundation",
+      "insight": "Weekly focus: [Score:18] Weekly focus: Trading Cards",
+      "for_agents": [
+        "all"
+      ]
+    },
+    {
+      "date": "2026-04-08",
+      "source": "catalog-migration-planner",
+      "insight": "New Shopify candidates available -> Use for SNS posts and articles",
+      "for_agents": [
+        "sns-manager",
+        "content-strategist"
+      ]
+    },
+    {
+      "date": "2026-04-08",
+      "source": "growth-foundation",
+      "insight": "Weekly focus: [Score:14] Weekly focus: Electronic Toys",
+      "for_agents": [
+        "all"
+      ]
+    },
+    {
+      "date": "2026-04-08",
+      "source": "catalog-migration-planner",
+      "insight": "New Shopify candidates available -> Use for SNS posts and articles",
+      "for_agents": [
+        "sns-manager",
+        "content-strategist"
+      ]
+    },
+    {
+      "date": "2026-04-08",
+      "source": "growth-foundation",
+      "insight": "Weekly focus: [Score:14] Weekly focus: Electronic Toys",
+      "for_agents": [
+        "all"
+      ]
+    },
+    {
+      "date": "2026-04-08",
+      "source": "catalog-migration-planner",
+      "insight": "New Shopify candidates available -> Use for SNS posts and articles",
+      "for_agents": [
+        "sns-manager",
+        "content-strategist"
+      ]
+    },
+    {
+      "date": "2026-04-08",
+      "source": "growth-foundation",
+      "insight": "Weekly focus: [Score:14] Weekly focus: Electronic Toys",
+      "for_agents": [
+        "all"
+      ]
+    }
+  ],
+  "feedbacks": [
+    {
+      "date": "2026-04-07",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Add product reviews (Judge.me or similar) -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Add newsletter signup with first-order di -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Promotion detected: \"% off\",      \"pre_or -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Promotion detected: \"discount;\n      }\n   -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Japan Figure Store] Add product reviews (Judge.me or sim -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "content-strategist",
+      "to": "catalog-migration-planner",
+      "insight": "Categories need more Shopify products to match article demand"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "growth-foundation",
+      "to": "store-setup",
+      "insight": "Analytics gaps affect all agents. Priority: fix tracking setup"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Add product reviews (Judge.me or similar) -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Add newsletter signup with first-order di -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Promotion detected: \"coupon_value === \"nu -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Promotion detected: \"discount = customere -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Japan Figure Store] Add product reviews (Judge.me or sim -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "content-strategist",
+      "to": "catalog-migration-planner",
+      "insight": "Categories need more Shopify products to match article demand"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "growth-foundation",
+      "to": "store-setup",
+      "insight": "Analytics gaps affect all agents. Priority: fix tracking setup"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Add product reviews (Judge.me or similar) -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Add newsletter signup with first-order di -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Promotion detected: \"discount;\n    }\n\n    -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Promotion detected: \"% off\",      \"pre_or -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Japan Figure Store] Add product reviews (Judge.me or sim -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "content-strategist",
+      "to": "catalog-migration-planner",
+      "insight": "Categories need more Shopify products to match article demand"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "growth-foundation",
+      "to": "store-setup",
+      "insight": "Analytics gaps affect all agents. Priority: fix tracking setup"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Add product reviews (Judge.me or similar) -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Add newsletter signup with first-order di -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Promotion detected: \"discount;\n      }\n   -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Promotion detected: \"% off\",      \"pre_or -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Japan Figure Store] Add product reviews (Judge.me or sim -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "content-strategist",
+      "to": "catalog-migration-planner",
+      "insight": "Categories need more Shopify products to match article demand"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "growth-foundation",
+      "to": "store-setup",
+      "insight": "Analytics gaps affect all agents. Priority: fix tracking setup"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Add product reviews (Judge.me or similar) -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Add newsletter signup with first-order di -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Promotion detected: \"discount;\n    }\n\n    -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Promotion detected: \"coupon_value === \"nu -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Japan Figure Store] Add product reviews (Judge.me or sim -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "content-strategist",
+      "to": "catalog-migration-planner",
+      "insight": "Categories need more Shopify products to match article demand"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "growth-foundation",
+      "to": "store-setup",
+      "insight": "Analytics gaps affect all agents. Priority: fix tracking setup"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Add product reviews (Judge.me or similar) -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Add newsletter signup with first-order di -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Promotion detected: \"discount = customere -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Promotion detected: \"% off\",      \"pre_or -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Japan Figure Store] Add product reviews (Judge.me or sim -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "content-strategist",
+      "to": "catalog-migration-planner",
+      "insight": "Categories need more Shopify products to match article demand"
+    },
+    {
+      "date": "2026-04-07",
+      "from": "growth-foundation",
+      "to": "store-setup",
+      "insight": "Analytics gaps affect all agents. Priority: fix tracking setup"
+    },
+    {
+      "date": "2026-04-08",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Add product reviews (Judge.me or similar) -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-08",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Add newsletter signup with first-order di -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-08",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Promotion detected: \"discount;\n    }\n\n    -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-08",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Promotion detected: \"coupon_value === \"nu -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-08",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Japan Figure Store] Add product reviews (Judge.me or sim -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-08",
+      "from": "content-strategist",
+      "to": "catalog-migration-planner",
+      "insight": "Categories need more Shopify products to match article demand"
+    },
+    {
+      "date": "2026-04-08",
+      "from": "growth-foundation",
+      "to": "store-setup",
+      "insight": "Analytics gaps affect all agents. Priority: fix tracking setup"
+    },
+    {
+      "date": "2026-04-08",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Add product reviews (Judge.me or similar) -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-08",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Add newsletter signup with first-order di -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-08",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Promotion detected: \"discount;\n      }\n   -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-08",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Promotion detected: \"discount = customere -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-08",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Japan Figure Store] Add product reviews (Judge.me or sim -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-08",
+      "from": "content-strategist",
+      "to": "catalog-migration-planner",
+      "insight": "Categories need more Shopify products to match article demand"
+    },
+    {
+      "date": "2026-04-08",
+      "from": "growth-foundation",
+      "to": "store-setup",
+      "insight": "Analytics gaps affect all agents. Priority: fix tracking setup"
+    },
+    {
+      "date": "2026-04-08",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Add product reviews (Judge.me or similar) -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-08",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Add newsletter signup with first-order di -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-08",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Promotion detected: \"discount = customere -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-08",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Solaris Japan] Promotion detected: \"coupon_value === \"nu -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-08",
+      "from": "competitive-intelligence",
+      "to": "sns-manager",
+      "insight": "Competitor uses: [vs Japan Figure Store] Add product reviews (Judge.me or sim -> Test in SNS posts"
+    },
+    {
+      "date": "2026-04-08",
+      "from": "content-strategist",
+      "to": "catalog-migration-planner",
+      "insight": "Categories need more Shopify products to match article demand"
+    },
+    {
+      "date": "2026-04-08",
+      "from": "growth-foundation",
+      "to": "store-setup",
+      "insight": "Analytics gaps affect all agents. Priority: fix tracking setup"
+    }
+  ],
+  "_last_updated": "2026-04-08 10:34"
+}

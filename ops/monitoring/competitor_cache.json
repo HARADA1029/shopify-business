@@ -1,0 +1,77 @@
+{
+  "solaris_japan": {
+    "promotions": [
+      "discount = customerepmetafield.coupon_value;\n      } else",
+      "coupon_value === \"number\" && customerepmetafield.coupon_",
+      "discount;\n      }\n    } else {\n      easypointssession.cus",
+      "discount;\n    }\n\n    sessionstorage.setitem(\"easypoints\",",
+      "% off\",      \"pre_order\": \"pre order\",      \"pre_owned\""
+    ],
+    "has_reviews": true,
+    "has_trust_badges": true,
+    "has_newsletter": true,
+    "collection_count": 117,
+    "social_links": [
+      "instagram",
+      "facebook",
+      "twitter",
+      "tiktok",
+      "youtube",
+      "pinterest"
+    ],
+    "page_size_kb": 360,
+    "content_hash": "41c0cba9ab4950c9d55ca91d3e80b424",
+    "fetched_at": "2026-04-08 10:34",
+    "status": "ok",
+    "changed_since_last": false
+  },
+  "japan_figure": {
+    "promotions": [
+      "discount\":0,\"total_weight\":0.0,\"item_count\":0,\"items\":[],\"",
+      "discounts are shown at checkout after adding an address\"",
+      "discountstrings = {\n    error: \"discount code cannot be ap",
+      "sale-tag-text: 255 255 255;\n    --color-rating: 250 78",
+      "sale-price: 250 78 112;\n    --color-sale-tag: 250 78 1"
+    ],
+    "has_reviews": true,
+    "has_trust_badges": true,
+    "has_newsletter": true,
+    "collection_count": 180,
+    "social_links": [
+      "instagram",
+      "facebook",
+      "twitter",
+      "tiktok",
+      "youtube",
+      "pinterest"
+    ],
+    "page_size_kb": 900,
+    "content_hash": "a0dabd6d3959879b0c7c0b02e15d9aae",
+    "fetched_at": "2026-04-08 10:34",
+    "status": "ok",
+    "changed_since_last": false
+  },
+  "super_anime": {
+    "promotions": [
+      "sale_of_data\"],\"datasharingadjustments\":{\"protectedcus",
+      "limited edition items.\">"
+    ],
+    "has_reviews": true,
+    "has_trust_badges": true,
+    "has_newsletter": true,
+    "collection_count": 92,
+    "social_links": [
+      "instagram",
+      "facebook",
+      "twitter",
+      "tiktok",
+      "youtube"
+    ],
+    "page_size_kb": 447,
+    "content_hash": "cf7b92f7264309acad122734e0ec0bba",
+    "fetched_at": "2026-04-08 10:34",
+    "status": "ok",
+    "changed_since_last": false
+  },
+  "_last_updated": "2026-04-08 10:34"
+}

@@ -1,23 +1,34 @@
 {
   "_comment": "エージェント間共有データ。daily_inspection.py と action_suggestions.py が読み書きする。",
-
   "weekly_focus": {
-    "category": "Trading Cards",
-    "week": "2026-W14",
-    "set_by": "growth-foundation",
-    "reason": "SC で pokemon 関連の検索表示が増加。Shopify に Trading Cards Active が1件のみで不足",
+    "category": "Plush & Soft Toys",
+    "week": "2026-W15",
+    "set_by": "project-orchestrator",
+    "reason": "原田指示。Plush & Soft Toys 強化。5件活性化(3→8件)。ブログ・SNS・Collection強化を実施",
     "actions": {
-      "products_to_add": ["Pokemon Card Charizard Holo", "Pokemon Card Pikachu McDonalds", "Pokemon Post Card Munch"],
-      "articles_to_write": ["Top 5 Rare Pokemon Cards from Japan"],
-      "sns_posts": ["pokemon-lugia-legend", "pokemon-charizard-holo"],
-      "internal_links": [{"from_id": 4468, "to_id": 3932, "context": "Squirtle -> Charizard"}],
+      "products_to_add": [],
+      "articles_to_write": [
+        "Japanese Plush Toys Collector Guide: Pokemon, Rilakkuma & More",
+        "Sylvanian Families from Japan: Rare Sets Worth Collecting"
+      ],
+      "sns_posts": [
+        "pokemon-appletun-plush",
+        "rilakkuma-big-cushion",
+        "sylvanian-urban-life"
+      ],
+      "internal_links": [],
       "cta_improvements": []
     },
-    "results": {}
+    "results": {},
+    "previous_focus": {
+      "category": "Electronic Toys",
+      "week": "2026-W15",
+      "products_added": 5,
+      "articles_written": 2,
+      "outcome": "7 Electronic Toys active, 2 blog articles published"
+    }
   },
-
   "active_experiments": [],
-
   "scoring_weights": {
     "reader_value": 3,
     "trust_building": 2,
@@ -26,8 +37,12 @@
     "focus_category_match": 2,
     "past_success_rate": 1
   },
-
   "philosophy": "Value first: provide value -> build trust -> earn fans -> sales follow naturally",
-
-  "last_updated": "2026-04-06"
+  "last_updated": "2026-04-06",
+  "adoption_learning": {
+    "success_categories": {},
+    "weak_categories": {},
+    "total_tracked": 43,
+    "last_updated": "2026-04-08"
+  }
 }

@@ -297,6 +297,11 @@ def main():
             "platform": "youtube_shorts",
             "video_id": result.get("video_id", ""),
             "url": result.get("url", ""),
+            "media_type": "video",
+            "has_product_link": True,
+            "product_url": shopify_link,
+            "posted_at": NOW.strftime("%Y-%m-%d %H:%M"),
+            "engagement": {"views": 0, "likes": 0, "comments": 0, "shares": 0, "shopify_visits": 0},
         })
         save_posted(posted_data)
         print()

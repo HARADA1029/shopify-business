@@ -12,6 +12,7 @@
 import json
 import os
 import csv
+import hashlib
 from collections import Counter, defaultdict
 from datetime import datetime, timezone, timedelta
 
@@ -19,6 +20,8 @@ JST = timezone(timedelta(hours=9))
 NOW = datetime.now(JST)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
+
+PROPOSAL_TRACKING_FILE = os.path.join(SCRIPT_DIR, "proposal_tracking.json")
 
 
 # ============================================================
@@ -781,7 +784,199 @@ def _score_proposal(proposal, shared_state):
 
 
 # ============================================================
-# メインエントリポイント: 全提案を生成 + スコアリング
+# 提案ID管理・追跡
+# ============================================================
+
+def _load_proposal_tracking():
+    """提案追跡データを読み込む"""
+    if not os.path.exists(PROPOSAL_TRACKING_FILE):
+        return {"proposals": [], "summary": {}}
+    try:
+        with open(PROPOSAL_TRACKING_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return {"proposals": [], "summary": {}}
+
+
+def _save_proposal_tracking(data):
+    """提案追跡データを保存する"""
+    data["summary"]["last_updated"] = NOW.strftime("%Y-%m-%d")
+    with open(PROPOSAL_TRACKING_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+
+def _generate_proposal_id(message, agent):
+    """提案のユニークIDを生成（内容ベースのハッシュ）"""
+    raw = "%s:%s:%s" % (NOW.strftime("%Y-%m-%d"), agent, message[:80])
+    return "P-%s-%s" % (NOW.strftime("%y%m%d"), hashlib.md5(raw.encode()).hexdigest()[:6])
+
+
+def _classify_proposal_type(message, agent):
+    """提案のタイプを分類"""
+    msg = message.lower()
+    if "ebay" in msg and ("sold" in msg or "sales" in msg):
+        return "sales_based"
+    if "similar" in msg or "同じ" in msg:
+        return "similar_product"
+    if "related" in msg or "character" in msg or "franchise" in msg:
+        return "related_character"
+    if "category" in msg and ("gap" in msg or "weak" in msg or "strengthen" in msg):
+        return "category_gap"
+    if "article" in msg or "blog" in msg:
+        return "article_theme"
+    if "sns" in msg or "pin" in msg or "instagram" in msg:
+        return "sns_post"
+    if "internal link" in msg:
+        return "internal_link"
+    if "page" in msg and ("improve" in msg or "audit" in msg):
+        return "page_improvement"
+    return "other"
+
+
+def track_proposals(findings):
+    """新しい提案をIDで追跡、既存提案の結果を評価する"""
+    tracking = _load_proposal_tracking()
+    existing_messages = set(p.get("message_hash", "") for p in tracking["proposals"])
+
+    new_count = 0
+    for f in findings:
+        if f.get("type") not in ("action", "suggestion"):
+            continue
+        msg = f.get("message", "")
+        agent = f.get("agent", "")
+        msg_hash = hashlib.md5(msg[:80].encode()).hexdigest()[:10]
+
+        if msg_hash in existing_messages:
+            continue
+
+        proposal_id = _generate_proposal_id(msg, agent)
+        proposal_type = _classify_proposal_type(msg, agent)
+
+        tracking["proposals"].append({
+            "id": proposal_id,
+            "message_hash": msg_hash,
+            "date": NOW.strftime("%Y-%m-%d"),
+            "agent": agent,
+            "type": proposal_type,
+            "message": msg[:120],
+            "score": f.get("_display_score", 0),
+            "status": "pending",
+            "adopted_date": None,
+            "result": None,
+            "result_date": None,
+            "next_action": None,
+        })
+        new_count += 1
+
+        # サマリ更新
+        summary = tracking.setdefault("summary", {})
+        accuracy = summary.setdefault("accuracy_by_type", {})
+        type_data = accuracy.setdefault(proposal_type, {"proposed": 0, "adopted": 0, "success": 0})
+        type_data["proposed"] += 1
+
+    # 古い提案（14日以上前で pending）を自動的に expired に
+    for p in tracking["proposals"]:
+        if p.get("status") == "pending" and p.get("date"):
+            try:
+                pdate = datetime.strptime(p["date"], "%Y-%m-%d")
+                if (NOW.replace(tzinfo=None) - pdate).days > 14:
+                    p["status"] = "expired"
+            except ValueError:
+                pass
+
+    # サマリ再集計
+    summary = tracking.setdefault("summary", {})
+    summary["total"] = len(tracking["proposals"])
+    summary["adopted"] = sum(1 for p in tracking["proposals"] if p.get("status") == "adopted")
+    summary["rejected"] = sum(1 for p in tracking["proposals"] if p.get("status") == "rejected")
+    summary["pending"] = sum(1 for p in tracking["proposals"] if p.get("status") == "pending")
+    summary["success"] = sum(1 for p in tracking["proposals"] if p.get("result") == "success")
+    summary["failed"] = sum(1 for p in tracking["proposals"] if p.get("result") == "failed")
+
+    _save_proposal_tracking(tracking)
+    return new_count
+
+
+def evaluate_proposals(products, wp_posts):
+    """採用された提案の結果を自動評価する"""
+    tracking = _load_proposal_tracking()
+    shopify_titles = set(p["title"].lower() for p in products) if products else set()
+    wp_titles = set(p.get("title", {}).get("rendered", "").lower() for p in wp_posts) if wp_posts else set()
+
+    evaluated = 0
+    for p in tracking["proposals"]:
+        if p.get("status") != "adopted" or p.get("result"):
+            continue
+
+        adopted_date = p.get("adopted_date", "")
+        if not adopted_date:
+            continue
+
+        # 採用から7日以上経過したら評価
+        try:
+            adate = datetime.strptime(adopted_date, "%Y-%m-%d")
+            if (NOW.replace(tzinfo=None) - adate).days < 7:
+                continue
+        except ValueError:
+            continue
+
+        ptype = p.get("type", "")
+        msg = p.get("message", "").lower()
+
+        # タイプ別の自動評価
+        if ptype in ("sales_based", "similar_product", "related_character", "category_gap"):
+            # 商品がShopifyに追加されたかチェック
+            keywords = [w for w in msg.split() if len(w) > 4][:3]
+            found = any(any(kw in t for kw in keywords) for t in shopify_titles)
+            p["result"] = "success" if found else "pending_review"
+        elif ptype == "article_theme":
+            keywords = [w for w in msg.split() if len(w) > 4][:3]
+            found = any(any(kw in t for kw in keywords) for t in wp_titles)
+            p["result"] = "success" if found else "pending_review"
+        elif ptype == "sns_post":
+            p["result"] = "success"  # SNS投稿は自動実行されるため
+        else:
+            p["result"] = "pending_review"
+
+        p["result_date"] = NOW.strftime("%Y-%m-%d")
+        evaluated += 1
+
+        # サマリの精度更新
+        accuracy = tracking.get("summary", {}).get("accuracy_by_type", {})
+        type_data = accuracy.setdefault(ptype, {"proposed": 0, "adopted": 0, "success": 0})
+        if p["result"] == "success":
+            type_data["success"] += 1
+
+    if evaluated > 0:
+        _save_proposal_tracking(tracking)
+
+    return evaluated
+
+
+def get_proposal_accuracy_report():
+    """提案タイプ別精度レポートを生成"""
+    tracking = _load_proposal_tracking()
+    accuracy = tracking.get("summary", {}).get("accuracy_by_type", {})
+
+    lines = []
+    for ptype, data in sorted(accuracy.items()):
+        proposed = data.get("proposed", 0)
+        adopted = data.get("adopted", 0)
+        success = data.get("success", 0)
+        if proposed == 0:
+            continue
+        adopt_rate = (adopted / proposed * 100) if proposed > 0 else 0
+        success_rate = (success / adopted * 100) if adopted > 0 else 0
+        lines.append(
+            "[%s] proposed:%d adopted:%d(%.0f%%) success:%d(%.0f%%)"
+            % (ptype, proposed, adopted, adopt_rate, success, success_rate)
+        )
+
+    return lines
+
+
+# ============================================================
+# メインエントリポイント: 全提案を生成 + スコアリング + ID追跡
 # ============================================================
 
 def generate_all_suggestions(products, wp_posts, wp_categories):
@@ -808,6 +1003,30 @@ def generate_all_suggestions(products, wp_posts, wp_categories):
     # 各提案にスコアを表示用に追加
     for f in all_findings:
         score = f.pop("_score", 0)
+        f["_display_score"] = score
         f["message"] = "[Score:%d] %s" % (score, f["message"])
+
+    # 提案をID付きで追跡
+    new_count = track_proposals(all_findings)
+
+    # 過去の採用提案を評価
+    evaluated = evaluate_proposals(products, wp_posts)
+
+    # 精度レポートを追加
+    accuracy_lines = get_proposal_accuracy_report()
+    if accuracy_lines:
+        all_findings.append({
+            "type": "info",
+            "agent": "self-learning",
+            "message": "Proposal accuracy: %d types tracked" % len(accuracy_lines),
+            "details": accuracy_lines,
+        })
+
+    if new_count > 0 or evaluated > 0:
+        all_findings.append({
+            "type": "info",
+            "agent": "self-learning",
+            "message": "Proposal tracking: %d new proposals registered, %d evaluated" % (new_count, evaluated),
+        })
 
     return all_findings

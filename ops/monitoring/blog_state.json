@@ -1,0 +1,64 @@
+{
+  "articles_generated": [
+    {
+      "date": "2026-04-07",
+      "handle": "jojo-s-bizarre-adventure-stone-ocean-jolyne-face-powder-ichiban-kuji-coffret-a",
+      "title": "JoJo 's Bizarre Adventure Stone Ocean Jolyne Face Powder Ichiban Kuji Coffret A",
+      "category": "Scale Figures",
+      "wp_post_id": 4832,
+      "wp_link": "https://hd-bodyscience.com/?p=4832",
+      "template": "standard",
+      "status": "draft"
+    },
+    {
+      "date": "2026-04-10",
+      "handle": "final-fantasy-vii-10th-anniversary-limited-potion-replica-bottle100ml-collection",
+      "title": "FINAL FANTASY VII 10th Anniversary Limited Potion Replica Bottle100ml Collection",
+      "category": "Video Games",
+      "wp_post_id": 4895,
+      "wp_link": "https://hd-bodyscience.com/final-fantasy-vii-10th-anniversary-limited-potion-replica-bottle100ml-collection/4895/",
+      "template": "standard",
+      "status": "published",
+      "quality": {
+        "words": 2013,
+        "images": 4,
+        "h2": 6,
+        "passed": true
+      },
+      "settings": {
+        "categories": [
+          493
+        ],
+        "tags": [
+          490,
+          492,
+          42,
+          494,
+          32,
+          494
+        ],
+        "featured_media": 4894
+      }
+    }
+  ],
+  "experiments": [],
+  "template_scores": {},
+  "_last_updated": "2026-04-10",
+  "analysis_history": [
+    {
+      "date": "2026-04-08",
+      "articles_analyzed": 1,
+      "issues_found": 2
+    },
+    {
+      "date": "2026-04-08",
+      "articles_analyzed": 1,
+      "issues_found": 2
+    },
+    {
+      "date": "2026-04-08",
+      "articles_analyzed": 1,
+      "issues_found": 2
+    }
+  ]
+}
