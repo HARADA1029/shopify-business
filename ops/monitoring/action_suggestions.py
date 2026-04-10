@@ -979,6 +979,47 @@ def get_proposal_accuracy_report():
 # メインエントリポイント: 全提案を生成 + スコアリング + ID追跡
 # ============================================================
 
+def _get_prohibited_types():
+    """PROHIBIT/SUPPRESS/HOLD対象のタイプを取得"""
+    tracking = _load_proposal_tracking()
+    if not tracking:
+        return set(), set(), set()
+
+    proposals = tracking.get("proposals", [])
+    from collections import Counter
+    type_total = Counter(p.get("type", "") for p in proposals if p.get("status") != "pending")
+    type_fails = Counter(p.get("type", "") for p in proposals if p.get("result") in ("no_reaction", "failed", "reaction_only", "weak"))
+
+    prohibited = set()
+    suppressed = set()
+    held = set()
+
+    for ptype in type_total:
+        total = type_total[ptype]
+        fails = type_fails.get(ptype, 0)
+        if total == 0:
+            continue
+        rate = fails / total
+
+        if fails >= 5 and rate >= 0.8:
+            prohibited.add(ptype)
+        elif fails >= 3 and rate >= 0.6:
+            suppressed.add(ptype)
+        elif fails >= 2 and rate >= 0.5:
+            held.add(ptype)
+
+    # SUPPRESS/HOLD 再開条件チェック:
+    # 直近3件中2件以上successなら再開
+    for ptype in list(suppressed) + list(held):
+        recent = [p for p in proposals if p.get("type") == ptype][-3:]
+        recent_success = sum(1 for p in recent if p.get("result") == "success")
+        if recent_success >= 2:
+            suppressed.discard(ptype)
+            held.discard(ptype)
+
+    return prohibited, suppressed, held
+
+
 def generate_all_suggestions(products, wp_posts, wp_categories):
     """全てのアクション提案を生成し、スコアリングして返す"""
     shared_state = _load_shared_state()
@@ -993,9 +1034,32 @@ def generate_all_suggestions(products, wp_posts, wp_categories):
     all_findings.extend(suggest_derived_articles(products, wp_posts, wp_categories))
     all_findings.extend(suggest_weekly_focus(products, wp_posts, wp_categories))
 
+    # PROHIBIT対象を除外、SUPPRESS対象のスコアを減点
+    prohibited, suppressed, held = _get_prohibited_types()
+    before_count = len(all_findings)
+
+    if prohibited:
+        all_findings = [f for f in all_findings if _classify_proposal_type(f.get("message", ""), f.get("agent", "")) not in prohibited]
+
     # スコアリング
     for f in all_findings:
         _score_proposal(f, shared_state)
+
+        # SUPPRESS: スコア50%減
+        ptype = _classify_proposal_type(f.get("message", ""), f.get("agent", ""))
+        if ptype in suppressed:
+            f["_score"] = max(int(f.get("_score", 0) * 0.5), 1)
+        # HOLD: スコア30%減
+        elif ptype in held:
+            f["_score"] = max(int(f.get("_score", 0) * 0.7), 1)
+
+        # カテゴリ失敗重み反映
+        cat_weights = shared_state.get("category_failure_weights", {})
+        if cat_weights:
+            msg_lower = f.get("message", "").lower()
+            for cat, weight in cat_weights.items():
+                if cat.lower() in msg_lower and weight < 1.0:
+                    f["_score"] = max(int(f.get("_score", 0) * weight), 1)
 
     # スコア順にソート
     all_findings.sort(key=lambda x: -x.get("_score", 0))
@@ -1004,7 +1068,31 @@ def generate_all_suggestions(products, wp_posts, wp_categories):
     for f in all_findings:
         score = f.pop("_score", 0)
         f["_display_score"] = score
-        f["message"] = "[Score:%d] %s" % (score, f["message"])
+        ptype = _classify_proposal_type(f.get("message", ""), f.get("agent", ""))
+        suffix = ""
+        if ptype in suppressed:
+            suffix = " [SUPPRESSED]"
+        elif ptype in held:
+            suffix = " [HOLD]"
+        f["message"] = "[Score:%d]%s %s" % (score, suffix, f["message"])
+
+    # PROHIBIT/SUPPRESS/HOLD レポート
+    if prohibited or suppressed or held:
+        status_details = []
+        if prohibited:
+            status_details.append("PROHIBITED (excluded): %s" % ", ".join(prohibited))
+            status_details.append("  Removed %d proposals" % (before_count - len([f for f in all_findings if f.get("type") in ("action", "suggestion")])))
+        if suppressed:
+            status_details.append("SUPPRESSED (score -50%%): %s" % ", ".join(suppressed))
+            status_details.append("  Resume condition: 2/3 recent successes")
+        if held:
+            status_details.append("HELD (score -30%%): %s" % ", ".join(held))
+            status_details.append("  Resume condition: 2/3 recent successes")
+        all_findings.append({
+            "type": "info", "agent": "self-learning",
+            "message": "Proposal filters: %d prohibited, %d suppressed, %d held" % (len(prohibited), len(suppressed), len(held)),
+            "details": status_details,
+        })
 
     # 提案をID付きで追跡
     new_count = track_proposals(all_findings)

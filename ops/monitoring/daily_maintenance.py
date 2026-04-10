@@ -606,8 +606,10 @@ def run_daily_maintenance():
 
     if inconsistencies:
         details.append("")
-        details.append("--- Fix Consistency Warnings ---")
-        details.extend(inconsistencies)
+        details.append("--- Fix Consistency Warnings (%d) ---" % len(inconsistencies))
+        # 代表例を表示（最大3件）
+        for ic in inconsistencies[:3]:
+            details.append(ic)
 
     severity = "suggestion" if critical > 0 else "info"
     result_findings.append({
