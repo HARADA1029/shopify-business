@@ -697,8 +697,62 @@ def report_passed_article_performance():
         details.append("")
         details.append("--- Post-Publish Performance Tracking ---")
         details.append("Articles in tracking window (3-30 days old): %d" % trackable)
-        details.append("Metrics to track: pageviews, CTA clicks, Shopify referrals, bounce rate")
-        details.append("Data source: GA4 via daily inspection (utm_source=hd-bodyscience)")
+
+        # GA4/UTM ベースの成果追跡項目
+        details.append("")
+        details.append("Tracked metrics per article:")
+        details.append("  1. Pageviews (GA4: page_view event)")
+        details.append("  2. Avg time on page (GA4: engagement_time)")
+        details.append("  3. CTA click rate (UTM: utm_medium=article → Shopify landing)")
+        details.append("  4. Shopify referral count (GA4: session_source=hd-bodyscience)")
+        details.append("  5. Product page views from blog (UTM: utm_campaign=blog-auto)")
+        details.append("  6. Add-to-cart from blog referral (GA4: add_to_cart with referrer)")
+
+        # 個別記事の送客状況（UTM追跡可能なもの）
+        details.append("")
+        details.append("Per-article UTM tracking URLs:")
+        track_window = [a for a in passed if a.get("wp_post_id")]
+        for a in track_window[-3:]:
+            handle = a.get("handle", "")
+            if handle:
+                details.append("  %s → utm_content=%s" % (a.get("title", "?")[:30], handle))
+
+        # blog_state に追跡対象を記録
+        state.setdefault("post_publish_tracking", [])
+        for a in track_window:
+            wp_id = a.get("wp_post_id", 0)
+            if not any(t.get("wp_post_id") == wp_id for t in state.get("post_publish_tracking", [])):
+                try:
+                    pub_days = (NOW.date() - datetime.strptime(a.get("date", ""), "%Y-%m-%d").date()).days
+                except (ValueError, TypeError):
+                    pub_days = 0
+
+                if 3 <= pub_days <= 30:
+                    state["post_publish_tracking"].append({
+                        "wp_post_id": wp_id,
+                        "title": a.get("title", "")[:50],
+                        "handle": a.get("handle", ""),
+                        "published_date": a.get("date", ""),
+                        "tracking_start": NOW.strftime("%Y-%m-%d"),
+                        "metrics": {
+                            "pageviews": 0,
+                            "cta_clicks": 0,
+                            "shopify_referrals": 0,
+                            "product_views": 0,
+                            "add_to_cart": 0,
+                        },
+                        "status": "tracking",
+                    })
+        # 30日超のものを完了に
+        for t in state.get("post_publish_tracking", []):
+            try:
+                days = (NOW.date() - datetime.strptime(t.get("published_date", ""), "%Y-%m-%d").date()).days
+                if days > 30:
+                    t["status"] = "completed"
+            except (ValueError, TypeError):
+                pass
+
+        _save_blog_state(state)
 
     # 品質通過率
     all_generated = state.get("articles_generated", [])
@@ -735,6 +789,25 @@ def report_passed_article_performance():
             details.append("Top rejection reasons:")
             for reason, count in reason_counts.most_common(5):
                 details.append("  [%d] %s" % (count, reason))
+
+        # アウトライン導入前後の short_content 比較
+        outline_date = "2026-04-10"  # アウトライン導入日
+        before_outline = [r for r in all_rejected if r.get("date", "") < outline_date]
+        after_outline = [r for r in all_rejected if r.get("date", "") >= outline_date]
+        short_before = sum(1 for r in before_outline if any("short_content" in i for i in r.get("issues", [])))
+        short_after = sum(1 for r in after_outline if any("short_content" in i for i in r.get("issues", [])))
+
+        details.append("")
+        details.append("--- Outline Effect (short_content) ---")
+        details.append("Before outline: %d/%d rejected for short_content" % (short_before, max(len(before_outline), 1)))
+        details.append("After outline: %d/%d rejected for short_content" % (short_after, max(len(after_outline), 1)))
+        if len(after_outline) >= 2:
+            if short_after < short_before:
+                details.append("EFFECTIVE: short_content rejections decreased")
+            elif short_after == 0:
+                details.append("EFFECTIVE: zero short_content rejections since outline")
+            else:
+                details.append("PARTIAL: short_content still occurring — review outline prompts")
 
     findings.append({
         "type": "info", "agent": "blog-analyst",

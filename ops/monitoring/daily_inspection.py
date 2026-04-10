@@ -1817,6 +1817,21 @@ def generate_chatwork_message(all_findings):
         if "Active:" in f["message"]:
             lines.append(f["message"])
 
+    # 🏗️ 基盤問題（提案改善より優先）
+    infra_path_cw = os.path.join(SCRIPT_DIR, "infra_tasks.json")
+    if os.path.exists(infra_path_cw):
+        try:
+            with open(infra_path_cw, "r", encoding="utf-8") as f:
+                infra_cw = json.load(f)
+            high_infra = [t for t in infra_cw.get("tasks", []) if t.get("status") == "open" and t.get("priority") == "high"]
+            if high_infra:
+                lines.append("")
+                lines.append("🏗️ 基盤問題（優先修正 %d件）" % len(high_infra))
+                for t in high_infra:
+                    lines.append("  [%s] %s" % (t.get("agent", "?"), t.get("description", "")[:50]))
+        except (json.JSONDecodeError, IOError):
+            pass
+
     # 🔴 要対応
     if critical:
         lines.append("")
