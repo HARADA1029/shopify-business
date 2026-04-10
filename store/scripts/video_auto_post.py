@@ -164,77 +164,42 @@ def generate_video(prompt):
 
 
 def upload_video_to_hosting(video_bytes):
-    """動画を一時的にホスティングする（Shopify Files API 経由）"""
-    shopify_token = load_shopify_token()
+    """動画を公開URLでホスティングする（WordPress メディアアップロード経由）"""
+    wp_user = os.environ.get("WP_USER", "")
+    wp_pass = os.environ.get("WP_APP_PASSWORD", "")
 
-    # Shopify の staged uploads API を使う
-    gql_url = "%s/admin/api/2026-04/graphql.json" % SHOPIFY_URL
-    headers = {"X-Shopify-Access-Token": shopify_token, "Content-Type": "application/json"}
-
-    # ステージドアップロードを作成
-    mutation = """
-    mutation {
-      stagedUploadsCreate(input: [{
-        resource: FILE
-        filename: "video_post.mp4"
-        mimeType: "video/mp4"
-        fileSize: "%d"
-        httpMethod: POST
-      }]) {
-        stagedTargets {
-          url
-          resourceUrl
-          parameters { name value }
-        }
-        userErrors { field message }
-      }
-    }
-    """ % len(video_bytes)
-
-    resp = requests.post(gql_url, headers=headers, json={"query": mutation}, timeout=30)
-    if resp.status_code != 200:
-        print("[ERROR] Staged upload creation failed")
+    if not wp_user or not wp_pass:
+        print("[ERROR] WordPress credentials not set for video hosting")
         return None
 
-    data = resp.json().get("data", {}).get("stagedUploadsCreate", {})
-    targets = data.get("stagedTargets", [])
-    if not targets:
-        print("[ERROR] No staged targets")
+    # WordPress にMP4をアップロード（公開URLが返る）
+    filename = "video-post-%s.mp4" % NOW.strftime("%Y%m%d-%H%M")
+    try:
+        resp = requests.post(
+            "https://hd-bodyscience.com/wp-json/wp/v2/media",
+            auth=(wp_user, wp_pass),
+            headers={
+                "Content-Disposition": "attachment; filename=%s" % filename,
+                "Content-Type": "video/mp4",
+            },
+            data=video_bytes,
+            timeout=120,
+        )
+
+        if resp.status_code == 201:
+            media = resp.json()
+            public_url = media.get("source_url", "")
+            media_id = media.get("id", 0)
+            print("[OK] Video uploaded to WordPress (ID: %d, %d KB)" % (media_id, len(video_bytes) // 1024))
+            print("  URL: %s" % public_url)
+            return public_url
+        else:
+            print("[ERROR] WordPress video upload failed: HTTP %d %s" % (resp.status_code, resp.text[:200]))
+            return None
+
+    except Exception as e:
+        print("[ERROR] WordPress video upload error: %s" % str(e)[:100])
         return None
-
-    target = targets[0]
-    upload_url = target["url"]
-    resource_url = target["resourceUrl"]
-    params = {p["name"]: p["value"] for p in target["parameters"]}
-
-    # アップロード
-    files = {"file": ("video_post.mp4", video_bytes, "video/mp4")}
-    upload_resp = requests.post(upload_url, data=params, files=files, timeout=60)
-
-    if upload_resp.status_code in (200, 201, 204):
-        print("[OK] Video uploaded to Shopify Files")
-        # ファイルを作成して公開 URL を取得
-        file_mutation = """
-        mutation {
-          fileCreate(files: [{
-            originalSource: "%s"
-            contentType: VIDEO
-          }]) {
-            files { id alt preview { image { url } } }
-            userErrors { field message }
-          }
-        }
-        """ % resource_url
-
-        file_resp = requests.post(gql_url, headers=headers, json={"query": file_mutation}, timeout=30)
-        if file_resp.status_code == 200:
-            files_data = file_resp.json().get("data", {}).get("fileCreate", {}).get("files", [])
-            if files_data:
-                # 公開 URL の取得には時間がかかるため resource_url を返す
-                return resource_url
-
-    print("[ERROR] Video upload failed")
-    return None
 
 
 def post_video_to_instagram(ig_token_data, video_url, caption):
@@ -411,6 +376,10 @@ def main():
             "category": category,
             "platform": "facebook_video",
             "video_id": fb_result.get("video_id", ""),
+            "media_type": "video",
+            "has_product_link": True,
+            "posted_at": NOW.strftime("%Y-%m-%d %H:%M"),
+            "engagement": {"impressions": 0, "views": 0, "likes": 0, "comments": 0, "shares": 0},
         })
 
     # Instagram Reels に動画投稿
@@ -439,6 +408,10 @@ def main():
                 "category": category,
                 "platform": "instagram_reels",
                 "media_id": ig_result.get("media_id", ""),
+                "media_type": "video",
+                "has_product_link": False,
+                "posted_at": NOW.strftime("%Y-%m-%d %H:%M"),
+                "engagement": {"views": 0, "likes": 0, "comments": 0, "saves": 0, "shares": 0},
             })
     else:
         print("[SKIP] Instagram Reels: video hosting failed, skipping")

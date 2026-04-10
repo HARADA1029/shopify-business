@@ -35,6 +35,8 @@ jobs:
         env:
           SHOPIFY_STORE: ${{ secrets.SHOPIFY_STORE }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
         run: python store/scripts/video_auto_post.py
 
       - name: Commit posted list
