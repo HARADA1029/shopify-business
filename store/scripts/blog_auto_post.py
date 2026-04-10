@@ -412,29 +412,57 @@ def add_cta_and_links(article_html, product):
 
 
 def quality_check(article_html, product):
-    """品質チェックゲート。不合格なら理由を返す"""
+    """品質チェックゲート（5項目必須）。不合格なら理由を返す。
+
+    必須チェック項目:
+    1. no_images: 画像3枚以上
+    2. no_category: product_type（カテゴリ）が設定されている
+    3. no_cta: Shopify CTAブロックが含まれている
+    4. no_internal_links: hd-bodyscience.com への内部リンクがある
+    5. short_content: 800語以上
+    """
     text = re.sub(r'<[^>]+>', '', article_html)
     word_count = len(text.split())
     img_count = len(re.findall(r'<img', article_html))
     h2_count = len(re.findall(r'<h2', article_html))
     has_cta = "hd-toys-store-japan" in article_html.lower()
-    has_source = "source:" in article_html.lower() or "hd toys store japan" in article_html.lower()
+    has_internal_links = "hd-bodyscience.com" in article_html.lower()
+    has_category = bool(product.get("product_type", ""))
 
     issues = []
-    if word_count < MIN_WORDS:
-        issues.append("Too short: %d words (min %d)" % (word_count, MIN_WORDS))
+
+    # 1. no_images
     if img_count < MIN_IMAGES:
-        issues.append("Too few images: %d (min %d)" % (img_count, MIN_IMAGES))
-    if h2_count < MIN_H2:
-        issues.append("Too few H2 headings: %d (min %d)" % (h2_count, MIN_H2))
+        issues.append("[no_images] Too few images: %d (min %d)" % (img_count, MIN_IMAGES))
+
+    # 2. no_category
+    if not has_category:
+        issues.append("[no_category] Product has no product_type — cannot set article category")
+
+    # 3. no_cta
     if not has_cta:
-        issues.append("No CTA block")
+        issues.append("[no_cta] No Shopify CTA block in article")
+
+    # 4. no_internal_links
+    if not has_internal_links:
+        issues.append("[no_internal_links] No internal links to hd-bodyscience.com")
+
+    # 5. short_content
+    if word_count < MIN_WORDS:
+        issues.append("[short_content] Too short: %d words (min %d)" % (word_count, MIN_WORDS))
+
+    # 追加チェック（必須ではないが報告）
+    if h2_count < MIN_H2:
+        issues.append("[few_h2] Too few H2 headings: %d (min %d)" % (h2_count, MIN_H2))
 
     return {
         "passed": len(issues) == 0,
         "word_count": word_count,
         "img_count": img_count,
         "h2_count": h2_count,
+        "has_cta": has_cta,
+        "has_internal_links": has_internal_links,
+        "has_category": has_category,
         "issues": issues,
     }
 

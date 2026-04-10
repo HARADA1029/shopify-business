@@ -442,6 +442,66 @@ def _apply_category_failure_weights(cat_losses):
         _save_json("shared_state.json", ss)
 
 
+def _register_infra_task(causes):
+    """基盤問題をproposal品質とは別枠で追跡"""
+    infra_log_path = os.path.join(SCRIPT_DIR, "infra_tasks.json")
+    try:
+        if os.path.exists(infra_log_path):
+            with open(infra_log_path, "r", encoding="utf-8") as f:
+                infra = json.load(f)
+        else:
+            infra = {"tasks": [], "last_updated": ""}
+    except (json.JSONDecodeError, IOError):
+        infra = {"tasks": [], "last_updated": ""}
+
+    today = NOW.strftime("%Y-%m-%d")
+    existing_types = set(t.get("type", "") for t in infra["tasks"] if t.get("status") == "open")
+
+    if causes.get("platform_skip", 0) > 0 and "platform_skip" not in existing_types:
+        infra["tasks"].append({
+            "type": "platform_skip",
+            "description": "SNS platform posting failure — workflow not executing or API error",
+            "priority": "high",
+            "status": "open",
+            "agent": "sns-manager",
+            "created": today,
+            "updated": today,
+            "count": causes["platform_skip"],
+            "fix": "Check GitHub Actions workflow logs for sns-auto-post and sns-video-post",
+        })
+
+    if causes.get("token_issue", 0) > 0 and "token_issue" not in existing_types:
+        infra["tasks"].append({
+            "type": "token_issue",
+            "description": "SNS API token/authentication failure",
+            "priority": "high",
+            "status": "open",
+            "agent": "sns-manager",
+            "created": today,
+            "updated": today,
+            "count": causes["token_issue"],
+            "fix": "Refresh or re-create API token for affected platform",
+        })
+
+    # 既存タスクのカウント更新
+    for t in infra["tasks"]:
+        if t.get("status") == "open":
+            if t["type"] == "platform_skip" and causes.get("platform_skip", 0) > 0:
+                t["count"] = t.get("count", 0) + causes["platform_skip"]
+                t["updated"] = today
+            elif t["type"] == "token_issue" and causes.get("token_issue", 0) > 0:
+                t["count"] = t.get("count", 0) + causes["token_issue"]
+                t["updated"] = today
+
+    infra["last_updated"] = today
+    # 30日以上解決済みのものを削除
+    cutoff = (NOW - timedelta(days=30)).strftime("%Y-%m-%d")
+    infra["tasks"] = [t for t in infra["tasks"] if t.get("status") == "open" or t.get("updated", "") >= cutoff]
+
+    with open(infra_log_path, "w", encoding="utf-8") as f:
+        json.dump(infra, f, indent=2, ensure_ascii=False)
+
+
 def _analyze_warning_trends():
     """warning件数の7日推移、高再発warningの自動昇格、優先修正対象の特定"""
     trend_details = []
@@ -573,11 +633,15 @@ def _analyze_warning_trends():
         if causes["other"] > 0:
             recurrence_details.append("  [%d] Other proposal issues" % causes["other"])
 
-        recurrence_details.append("Infrastructure issues: %d (not counted against proposal quality)" % infra_issues)
+        recurrence_details.append("Infrastructure issues: %d (tracked separately)" % infra_issues)
         if causes["platform_skip"] > 0:
             recurrence_details.append("  [%d] Platform skip → check workflow execution" % causes["platform_skip"])
         if causes["token_issue"] > 0:
             recurrence_details.append("  [%d] Token/auth → check API credentials" % causes["token_issue"])
+
+        # 基盤問題を別タスクとして追跡
+        if infra_issues > 0:
+            _register_infra_task(causes)
 
     # === article_theme 悪化予防 ===
     article_warnings = [w for w in warnings if any(kw in w.get("warning", "").lower() for kw in ["article", "blog", "write", "content"])]
