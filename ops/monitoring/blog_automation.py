@@ -518,16 +518,18 @@ def research_competitor_articles():
 # ============================================================
 
 def get_recommended_template():
-    """今日使うべきテンプレートを返す"""
+    """今日使うべきテンプレートを返す（guide型優先）
+
+    guide型が最もadd_to_cart率が高いため、週の過半数をguide型にする。
+    月=guide, 火=top5, 水=guide, 木=guide, 金=top5, 土=comparison, 日=guide
+    """
     day = NOW.weekday()
-    if day in (1, 3):
+    if day in (1, 4):  # 火・金
         return TOP5_TEMPLATE
-    elif day == 5:
+    elif day == 5:  # 土
         return COMPARISON_TEMPLATE
-    elif day == 0:
+    else:  # 月・水・木・日 = guide
         return GUIDE_TEMPLATE
-    else:
-        return STANDARD_TEMPLATE
 
 
 # ============================================================

@@ -351,21 +351,25 @@ INSERT_IMAGE_2_HERE
 INSERT_IMAGE_3_HERE
 
 <h2>Collector's Guide: What to Look For</h2>
-<p>[Practical advice for collectors. What condition factors matter, what to inspect, common issues to watch for. 150+ words.]</p>
+<p>[Practical advice for collectors. What condition factors matter, what to inspect, common issues to watch for. This is the most valuable section for readers. 200+ words.]</p>
 
-<h3>Condition Tips for Pre-Owned Items</h3>
+<h3>Condition Checklist</h3>
 <ul>
-<li>[Specific condition tip 1 for this item type]</li>
-<li>[Specific condition tip 2]</li>
-<li>[Specific condition tip 3]</li>
-<li>[Specific condition tip 4]</li>
+<li><strong>[Check 1]:</strong> [Specific to this item type — what to inspect first]</li>
+<li><strong>[Check 2]:</strong> [Second priority check]</li>
+<li><strong>[Check 3]:</strong> [Third check]</li>
+<li><strong>[Check 4]:</strong> [Fourth check]</li>
+<li><strong>Packaging:</strong> [Original box/manual importance]</li>
 </ul>
+
+<h3>Price Guide</h3>
+<p>[Price expectations for this item type. Common condition: $XX-XX. Good condition: $XX-XX. Mint/complete: $XX-XX. What factors affect price most. 100+ words.]</p>
 
 <h2>Similar Items Worth Exploring</h2>
 <p>[Recommend 3-4 related items from the same franchise or category. Explain why a collector of this item would also be interested. 150+ words.]</p>
 
 <h2>Why Buy Japanese Collectibles from Japan?</h2>
-<p>[Explain the advantage of buying directly from Japan: authenticity, condition, exclusive editions, careful handling culture. 100+ words. Be informative, not salesy.]</p>
+<p>[Japanese collector culture values preservation. Items often stored in original packaging. Japan-exclusive editions only available from Japanese sellers. Authenticity verified by specialist sellers. 120+ words. Informative, not salesy.]</p>
 
 INSERT_IMAGE_4_HERE
 
