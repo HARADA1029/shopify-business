@@ -547,6 +547,217 @@ def analyze_retention():
 # メインエントリポイント
 # ============================================================
 
+# ============================================================
+# 8. 媒体別SNS勝ちパターン比較
+# ============================================================
+
+def compare_sns_win_patterns():
+    """SNS媒体別の勝ちパターンを比較"""
+    findings = []
+    posted = _load_json("sns_posted.json")
+    if not posted or not posted.get("history"):
+        return findings
+
+    history = posted["history"]
+    two_weeks = (NOW - timedelta(days=14)).strftime("%Y-%m-%d")
+    recent = [h for h in history if h.get("date", "") >= two_weeks]
+    if len(recent) < 2:
+        return findings
+
+    # 媒体別
+    platform_data = defaultdict(lambda: {"posts": 0, "likes": 0, "views": 0, "saves": 0, "best_post": None, "best_likes": 0})
+    # メディアタイプ別
+    media_data = defaultdict(lambda: {"posts": 0, "likes": 0, "views": 0})
+    # カテゴリ別
+    cat_data = defaultdict(lambda: {"posts": 0, "likes": 0, "views": 0})
+
+    for h in recent:
+        eng = h.get("engagement", {})
+        likes = eng.get("likes", 0)
+        views = eng.get("views", eng.get("impressions", 0))
+        saves = eng.get("saves", 0)
+        platform = h.get("platform", "unknown")
+        media = h.get("media_type", "unknown")
+        cat = h.get("category", "unknown")
+
+        platform_data[platform]["posts"] += 1
+        platform_data[platform]["likes"] += likes
+        platform_data[platform]["views"] += views
+        platform_data[platform]["saves"] += saves
+        if likes > platform_data[platform]["best_likes"]:
+            platform_data[platform]["best_likes"] = likes
+            platform_data[platform]["best_post"] = h.get("title", "?")[:35]
+
+        media_data[media]["posts"] += 1
+        media_data[media]["likes"] += likes
+        media_data[media]["views"] += views
+
+        cat_data[cat]["posts"] += 1
+        cat_data[cat]["likes"] += likes
+        cat_data[cat]["views"] += views
+
+    details = ["=== SNS Win Pattern Comparison (14d) ==="]
+
+    # 媒体別ランキング
+    details.append("--- By Platform (avg likes/post) ---")
+    ranked = sorted(platform_data.items(), key=lambda x: x[1]["likes"] / max(x[1]["posts"], 1), reverse=True)
+    for i, (p, d) in enumerate(ranked):
+        avg_l = d["likes"] / max(d["posts"], 1)
+        avg_v = d["views"] / max(d["posts"], 1)
+        marker = "BEST" if i == 0 and len(ranked) > 1 else ""
+        details.append("  [%s] %d posts, avg likes:%.1f, avg views:%.0f %s" % (p, d["posts"], avg_l, avg_v, marker))
+        if d["best_post"]:
+            details.append("    Top post: %s (%d likes)" % (d["best_post"], d["best_likes"]))
+
+    # 画像vs動画
+    if len(media_data) > 1:
+        details.append("--- Image vs Video ---")
+        for m, d in sorted(media_data.items()):
+            avg_l = d["likes"] / max(d["posts"], 1)
+            details.append("  [%s] %d posts, avg likes:%.1f" % (m, d["posts"], avg_l))
+
+    # カテゴリ別
+    if len(cat_data) > 1:
+        details.append("--- By Category ---")
+        cat_ranked = sorted(cat_data.items(), key=lambda x: x[1]["likes"] / max(x[1]["posts"], 1), reverse=True)
+        for c, d in cat_ranked[:5]:
+            avg_l = d["likes"] / max(d["posts"], 1)
+            details.append("  [%s] %d posts, avg likes:%.1f" % (c, d["posts"], avg_l))
+
+    findings.append({
+        "type": "info", "agent": "sns-manager",
+        "message": "SNS win patterns: %d platforms, %d media types, %d categories compared" % (
+            len(platform_data), len(media_data), len(cat_data)),
+        "details": details,
+    })
+    return findings
+
+
+# ============================================================
+# 9. 記事タイプ別送客比較
+# ============================================================
+
+def compare_article_referrals(wp_posts):
+    """記事タイプ別のShopify送客力を比較"""
+    findings = []
+    if not wp_posts:
+        return findings
+
+    type_data = defaultdict(lambda: {"count": 0, "with_cta": 0, "with_images": 0, "total_words": 0})
+
+    for p in wp_posts:
+        title = p.get("title", {})
+        if isinstance(title, dict): title = title.get("rendered", "")
+        content = p.get("content", {})
+        if isinstance(content, dict): content = content.get("rendered", "")
+        if not content: continue
+
+        # タイプ分類
+        t = (str(title) + " " + str(content)[:500]).lower()
+        if any(kw in t for kw in ["top 5", "top 10", "best", "ranking"]):
+            atype = "top5"
+        elif any(kw in t for kw in ["vs", "comparison", "compare"]):
+            atype = "comparison"
+        elif any(kw in t for kw in ["guide", "how to", "beginner", "tips"]):
+            atype = "guide"
+        else:
+            atype = "single_review"
+
+        word_count = len(re.sub(r"<[^>]+>", "", content).split())
+        has_cta = "hd-toys-store-japan" in content.lower()
+        has_images = len(re.findall(r"<img", content)) > 0
+
+        type_data[atype]["count"] += 1
+        type_data[atype]["total_words"] += word_count
+        if has_cta: type_data[atype]["with_cta"] += 1
+        if has_images: type_data[atype]["with_images"] += 1
+
+    if not type_data:
+        return findings
+
+    details = ["=== Article Type Referral Comparison ==="]
+    details.append("%-15s | Count | AvgW | CTA%% | Img%%" % "Type")
+    details.append("-" * 50)
+
+    for atype, d in sorted(type_data.items()):
+        avg_w = d["total_words"] / max(d["count"], 1)
+        cta_pct = d["with_cta"] / max(d["count"], 1) * 100
+        img_pct = d["with_images"] / max(d["count"], 1) * 100
+        details.append("%-15s | %5d | %4d | %3.0f%% | %3.0f%%" % (atype, d["count"], avg_w, cta_pct, img_pct))
+
+    # 送客力が高い型の推定
+    best_type = max(type_data.items(), key=lambda x: x[1]["with_cta"] / max(x[1]["count"], 1))
+    details.append("")
+    details.append("Best referral type: %s (%.0f%% CTA rate)" % (
+        best_type[0], best_type[1]["with_cta"] / max(best_type[1]["count"], 1) * 100))
+
+    findings.append({
+        "type": "info", "agent": "blog-analyst",
+        "message": "Article referral: %d types compared, best=%s" % (len(type_data), best_type[0]),
+        "details": details,
+    })
+    return findings
+
+
+# ============================================================
+# 10. CRO改善案の成功率比較
+# ============================================================
+
+def compare_cro_success():
+    """CRO関連提案の成功率を他の提案タイプと比較"""
+    findings = []
+    pt = _load_json("proposal_tracking.json")
+    if not pt or not pt.get("proposals"):
+        return findings
+
+    proposals = pt["proposals"]
+    cro_proposals = [p for p in proposals if p.get("type") == "page_improvement"]
+    other_proposals = [p for p in proposals if p.get("type") != "page_improvement" and p.get("status") != "pending"]
+
+    if not cro_proposals:
+        return findings
+
+    cro_adopted = sum(1 for p in cro_proposals if p.get("status") == "adopted")
+    cro_success = sum(1 for p in cro_proposals if p.get("result") == "success")
+    cro_total = len(cro_proposals)
+
+    other_adopted = sum(1 for p in other_proposals if p.get("status") == "adopted")
+    other_success = sum(1 for p in other_proposals if p.get("result") == "success")
+    other_total = len(other_proposals)
+
+    cro_rate = cro_success / max(cro_adopted, 1) * 100
+    other_rate = other_success / max(other_adopted, 1) * 100
+
+    details = [
+        "=== CRO vs Other Proposals ===",
+        "CRO (page_improvement): %d proposed, %d adopted, %d success (%.0f%%)" % (cro_total, cro_adopted, cro_success, cro_rate),
+        "Other types: %d proposed, %d adopted, %d success (%.0f%%)" % (other_total, other_adopted, other_success, other_rate),
+        "",
+    ]
+
+    if cro_rate > other_rate:
+        details.append("CRO outperforms other types by %.0f pp → increase CRO weight" % (cro_rate - other_rate))
+    elif other_rate > cro_rate and cro_adopted >= 2:
+        details.append("CRO underperforms by %.0f pp → review CRO proposal quality" % (other_rate - cro_rate))
+    else:
+        details.append("Similar performance — continue balanced approach")
+
+    # CRO提案の詳細
+    if cro_proposals:
+        details.append("")
+        details.append("--- Recent CRO proposals ---")
+        for p in cro_proposals[-5:]:
+            result = p.get("result", "pending")
+            details.append("[%s] %s (%s)" % (result or "pending", p.get("message", "")[:50], p.get("adopted_date", "?")))
+
+    findings.append({
+        "type": "info", "agent": "self-learning",
+        "message": "CRO success rate: %.0f%% vs others %.0f%%" % (cro_rate, other_rate),
+        "details": details,
+    })
+    return findings
+
+
 def _sync_cro_to_tracking(cro_findings):
     """CRO改善案をproposal_tracking / experimentsに反映"""
     tracking_path = os.path.join(SCRIPT_DIR, "proposal_tracking.json")
@@ -607,4 +818,10 @@ def run_sales_optimization(products, wp_posts, all_findings):
     result.extend(audit_navigation(products, wp_posts))
     result.extend(analyze_dtc_transfer(products))
     result.extend(analyze_retention())
+
+    # 比較分析
+    result.extend(compare_sns_win_patterns())
+    result.extend(compare_article_referrals(wp_posts))
+    result.extend(compare_cro_success())
+
     return result
