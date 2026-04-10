@@ -54,6 +54,7 @@ MIN_H2 = 3
 CTA_TEMPLATE = '''
 <div style="margin:30px 0;padding:24px 20px;background:#f8f9fa;border:1px solid #e0e0e0;border-radius:10px;">
 <h3 style="font-size:17px;font-weight:bold;margin:0 0 12px 0;color:#333;">Where to Buy</h3>
+<p style="font-size:13px;color:#555;margin:0 0 12px 0;">Every item is carefully inspected and shipped directly from Japan. Pre-owned condition is documented with detailed photos.</p>
 <div style="display:flex;gap:10px;flex-wrap:wrap;">
 <a href="{shopify_url}" target="_blank" rel="noopener noreferrer"
 style="display:inline-block;padding:10px 22px;background:#4CAF50;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;font-size:14px;">
@@ -62,7 +63,7 @@ style="display:inline-block;padding:10px 22px;background:#4CAF50;color:#fff;text
 style="display:inline-block;padding:10px 22px;background:#0064D2;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;font-size:14px;">
 Browse on eBay</a>
 </div>
-<p style="font-size:12px;color:#888;margin:10px 0 0 0;">All items shipped directly from Japan. Condition and availability may vary.</p>
+<p style="font-size:12px;color:#888;margin:10px 0 0 0;">Shipped from Japan with tracking. Authentic items only.</p>
 </div>
 '''
 
@@ -429,19 +430,41 @@ def insert_images(article_html, product):
 
 
 def add_cta_and_links(article_html, product):
-    """CTA ブロックと内部リンクを追加する"""
+    """CTA ブロックと内部リンクを追加する（記事中盤 + 末尾の2箇所配置）"""
     handle = product["handle"]
     product_type = product.get("product_type", "")
 
     shopify_link = "%s/products/%s?utm_source=hd-bodyscience&utm_medium=article&utm_campaign=blog-auto" % (SHOPIFY_URL, handle)
+    ebay_link = "https://www.ebay.com/str/hdtoysstore?utm_source=hd-bodyscience&utm_medium=article&utm_campaign=blog-auto"
 
-    cta = CTA_TEMPLATE.format(
+    # メインCTA（記事末尾）
+    main_cta = CTA_TEMPLATE.format(
         shopify_url=shopify_link,
         shopify_text="View on HD Toys Store Japan",
-        ebay_url="https://www.ebay.com/str/hdtoysstore?utm_source=hd-bodyscience&utm_medium=article&utm_campaign=blog-auto",
+        ebay_url=ebay_link,
     )
 
-    article_html += cta
+    # ミニCTA（記事中盤に挿入 — PV→CTA率改善）
+    mini_cta = (
+        '<p style="margin:20px 0;padding:12px 16px;background:#f0f7f0;border-left:4px solid #4CAF50;border-radius:4px;font-size:14px;">'
+        'Interested in this item? '
+        '<a href="%s" target="_blank" rel="noopener noreferrer" style="color:#4CAF50;font-weight:bold;">'
+        'View it on HD Toys Store Japan</a> — '
+        'carefully inspected, shipped from Japan.'
+        '</p>'
+    ) % shopify_link
+
+    # 記事の中盤（3番目のH2の前）にミニCTAを挿入
+    h2_positions = [m.start() for m in __import__("re").finditer(r"<h2", article_html)]
+    if len(h2_positions) >= 3:
+        insert_pos = h2_positions[2]
+        article_html = article_html[:insert_pos] + mini_cta + article_html[insert_pos:]
+    elif len(h2_positions) >= 2:
+        insert_pos = h2_positions[1]
+        article_html = article_html[:insert_pos] + mini_cta + article_html[insert_pos:]
+
+    # メインCTAを末尾に
+    article_html += main_cta
     return article_html
 
 

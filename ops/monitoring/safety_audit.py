@@ -678,6 +678,32 @@ def run_safety_audit(all_findings):
         else:
             details.append("[BLOG] blog_content weight: %.1f (normal)" % blog_w)
 
+            # suppress解除後の品質監視（解除されたばかりの場合）
+            log = ss_data.get("weight_adjustment_log", [])
+            recently_lifted = any("blog_content suppress LIFTED" in str(l.get("adjustments", [])) for l in log[-5:])
+            if recently_lifted and pt_data:
+                post_lift_blogs = [p for p in pt_data.get("proposals", [])
+                                   if any(kw in p.get("message", "").lower() for kw in ["blog", "article"])
+                                   and p.get("status") == "adopted"]
+                post_lift_recent = post_lift_blogs[-3:] if post_lift_blogs else []
+                post_lift_success = sum(1 for p in post_lift_recent if p.get("result") == "success")
+                post_lift_fail = sum(1 for p in post_lift_recent if p.get("result") in ("no_reaction", "failed", "weak"))
+
+                details.append("  POST-LIFT MONITORING: %d/%d recent successes" % (post_lift_success, len(post_lift_recent)))
+                if post_lift_fail >= 2:
+                    details.append("  WARNING: Quality declining after suppress lift → consider re-suppressing")
+                    # 自動再抑制
+                    action_w = ss_data.get("action_type_weights", {})
+                    action_w["blog_content"] = 0.8
+                    ss_data.setdefault("weight_adjustment_log", []).append({
+                        "date": NOW.strftime("%Y-%m-%d"),
+                        "adjustments": ["blog_content RE-SUPPRESSED (quality dropped after lift)"],
+                    })
+                    _save_json("shared_state.json", ss_data)
+                    details.append("  ACTION: blog_content re-suppressed → weight 0.8")
+                elif post_lift_success >= 2:
+                    details.append("  OK: Quality maintained after suppress lift")
+
         # 7日比較
         blog_state_data = _load_json("blog_state.json")
         if blog_state_data and blog_state_data.get("pdca_history"):
