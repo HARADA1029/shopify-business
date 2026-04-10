@@ -1381,6 +1381,7 @@ from self_learning_audit import generate_self_learning_audit
 from bug_audit import generate_bug_audit
 from design_audit import run_design_audit
 from sales_optimization import run_sales_optimization
+from daily_maintenance import run_daily_maintenance
 from state_consistency_audit import generate_consistency_audit, filter_findings_by_ledger
 
 
@@ -2069,6 +2070,35 @@ def main():
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(json_data, f, indent=2, ensure_ascii=False)
     print(f"  JSON: {json_path}")
+
+    # 日次メンテナンス（レポート生成後に実行）
+    print()
+    print("[INFO] 日次メンテナンス実行...")
+    maintenance_findings = run_daily_maintenance()
+    all_findings.extend(maintenance_findings)
+
+    # メンテナンス結果をレポートに追記
+    maint_lines = []
+    maint_lines.append("")
+    maint_lines.append("## 🔧 日次メンテナンス")
+    maint_lines.append("")
+    for f in maintenance_findings:
+        icon = {"suggestion": "⚠️", "info": "ℹ️"}.get(f["type"], "📋")
+        maint_lines.append(f"### {icon} {f['message']}")
+        maint_lines.append("")
+        for d in f.get("details", []):
+            maint_lines.append(f"- {d}")
+        maint_lines.append("")
+
+    # Markdown レポートに追記
+    with open(md_path, "a", encoding="utf-8") as f:
+        f.write("\n".join(maint_lines))
+    print("  Maintenance appended to report")
+
+    # JSON にも反映
+    json_data["findings"] = all_findings
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(json_data, f, indent=2, ensure_ascii=False)
 
     # Chatwork 通知
     print()
