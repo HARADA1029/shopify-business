@@ -40,37 +40,53 @@
   },
 
   "shopify_sns": {
-    "_policy": "Shopify 専用アカウント。Shopify 集客用の投稿はこちらで行う。",
+    "_policy": "Shopify 専用アカウント。Shopify 集客用の投稿はこちらで行う。eBay用アカウント(hdstore777)と共用しているものもある。",
     "accounts": {
       "instagram": {
-        "created": false,
-        "username": "",
-        "url": "",
-        "notes": "未作成"
+        "created": true,
+        "username": "hdstore777",
+        "url": "https://www.instagram.com/hdstore777/",
+        "api_connected": true,
+        "last_post": "2026-04-10",
+        "notes": "eBay用アカウントと共用。自動投稿稼働中（毎日JST 20:00）"
+      },
+      "facebook": {
+        "created": true,
+        "username": "hdstore111",
+        "url": "https://www.facebook.com/hdstore111",
+        "api_connected": true,
+        "last_post": "2026-04-10",
+        "notes": "Instagram連携で自動投稿。動画投稿も稼働中"
       },
       "x_twitter": {
         "created": false,
         "username": "",
         "url": "",
-        "notes": "未作成"
+        "api_connected": false,
+        "notes": "Developer Portal API keys取得待ち。原田判断でスキップ中"
       },
       "tiktok": {
-        "created": false,
+        "created": true,
         "username": "",
         "url": "",
-        "notes": "未作成"
+        "api_connected": false,
+        "notes": "アカウント作成済み。App Review再申請中（ToS URL修正済み）"
       },
       "youtube": {
-        "created": false,
+        "created": true,
         "username": "",
         "url": "",
-        "notes": "未作成"
+        "api_connected": true,
+        "last_post": "2026-04-09",
+        "notes": "YouTube Shorts自動投稿稼働中（毎日JST 20:00）"
       },
       "pinterest": {
-        "created": false,
-        "username": "",
-        "url": "",
-        "notes": "未作成。eBay 用 hdstore777 とは別アカウント"
+        "created": true,
+        "username": "mitsuruharada02",
+        "url": "https://www.pinterest.com/mitsuruharada02/",
+        "api_connected": true,
+        "last_post": null,
+        "notes": "Trial access承認済み。7ボード作成済み。Standard access審査待ち（ピン作成にはStandard必要）"
       }
     }
   }
