@@ -661,6 +661,22 @@ def run_safety_audit(all_findings):
                         for cause, n in sorted(active_causes, key=lambda x: -x[1]):
                             details.append("    [%d] %s" % (n, cause))
 
+                        # 原因別の再発防止ルール
+                        details.append("  --- Per-Cause Prevention Rules ---")
+                        if sns_causes["genre_miss"] >= 2:
+                            details.append("  [genre_miss] RULE: Add core keyword filter to SNS proposal generation")
+                            details.append("    → proposals must contain: figure/toy/card/game/anime/pokemon/japan/collectible")
+                        if sns_causes["sales_push"] >= 1:
+                            details.append("  [sales_push] RULE: Block proposals with buy-now/limited-time/hurry language")
+                            details.append("    → auto-downgrade to info if detected")
+                        if sns_causes["trust_gap"] >= 1:
+                            details.append("  [trust_gap] RULE: Require condition/inspected/shipped-from-japan in product posts")
+                            details.append("    → flag for review if trust language missing")
+                        if sns_causes["new_product"] >= 1:
+                            details.append("  [new_product] RULE: Reject brand-new/factory-sealed language for used items")
+                        if sns_causes["competitor_copy"] >= 1:
+                            details.append("  [competitor_copy] RULE: Adapt competitor ideas, don't copy directly")
+
         # 偏差の多い提案タイプ → shared_state に記録して次回重み調整に反映
         type_dev = _C2()
         for _, msg, dev in high_deviation_proposals:
@@ -806,16 +822,76 @@ def run_safety_audit(all_findings):
 
                 # 最も効果的な対策を学習
                 best_action = success_by_action.most_common(1)[0]
-                details.append("Most effective: %s (%d successes) → increase weight for this type" % (best_action[0], best_action[1]))
+                details.append("Most effective: %s (%d successes)" % (best_action[0], best_action[1]))
 
-                # shared_state に学習結果を記録
+                # 効果の低い action type を検出
+                low_effect = []
+                if pt_data:
+                    action_rates = {}
+                    for p in pt_data.get("proposals", []):
+                        if p.get("status") != "adopted":
+                            continue
+                        msg = p.get("message", "").lower()
+                        for atype in ["trust_improvement", "description_improvement", "image_addition",
+                                      "category_expansion", "price_optimization", "blog_content",
+                                      "policy_setup", "quality_control"]:
+                            if any(kw in msg for kw in atype.replace("_", " ").split()):
+                                r = action_rates.setdefault(atype, {"adopted": 0, "success": 0})
+                                r["adopted"] += 1
+                                if p.get("result") == "success":
+                                    r["success"] += 1
+                                break
+
+                    for atype, r in action_rates.items():
+                        if r["adopted"] >= 3 and r["success"] / r["adopted"] < 0.4:
+                            low_effect.append((atype, r["adopted"], r["success"], r["success"] / r["adopted"]))
+
+                if low_effect:
+                    details.append("")
+                    details.append("--- Low-Effect Action Types ---")
+                    for atype, adopted, success, sr in sorted(low_effect, key=lambda x: x[3]):
+                        details.append("[REVIEW] %s: %d adopted, %d success (%.0f%%) → reduce weight" % (atype, adopted, success, sr * 100))
+
+                # trust_improvement 優先強化
+                trust_count = success_by_action.get("trust_improvement", 0)
+                total_success = sum(success_by_action.values())
+                if trust_count > 0 and trust_count >= total_success * 0.25:
+                    details.append("")
+                    details.append("--- trust_improvement Priority Boost ---")
+                    details.append("trust accounts for %d/%d successes (%.0f%%)" % (trust_count, total_success, trust_count / max(total_success, 1) * 100))
+                    details.append("ACTION: trust_building weight boosted")
+
+                # shared_state に反映
                 if ss_data:
                     ss_data.setdefault("success_by_action_history", []).append({
                         "date": NOW.strftime("%Y-%m-%d"),
                         "actions": dict(success_by_action),
                         "best": best_action[0],
+                        "low_effect": [le[0] for le in low_effect],
                     })
                     ss_data["success_by_action_history"] = ss_data["success_by_action_history"][-10:]
+
+                    # trust 重み強化
+                    if best_action[0] == "trust_improvement":
+                        weights = ss_data.get("scoring_weights", {})
+                        cur = weights.get("trust_building", 2)
+                        if cur < 4:
+                            weights["trust_building"] = min(cur + 0.5, 4)
+                            ss_data.setdefault("weight_adjustment_log", []).append({
+                                "date": NOW.strftime("%Y-%m-%d"),
+                                "adjustments": ["trust_building +0.5 (most effective action)"],
+                            })
+
+                    # 効果低い type の重み抑制
+                    if low_effect:
+                        aw = ss_data.setdefault("action_type_weights", {})
+                        for atype, _, _, _ in low_effect:
+                            aw[atype] = round(max(aw.get(atype, 1.0) - 0.2, 0.3), 1)
+                        ss_data.setdefault("weight_adjustment_log", []).append({
+                            "date": NOW.strftime("%Y-%m-%d"),
+                            "adjustments": ["Low-effect weights reduced: %s" % ", ".join(le[0] for le in low_effect)],
+                        })
+
                     _save_json("shared_state.json", ss_data)
 
     # ログ保存
