@@ -547,7 +547,63 @@ def run_safety_audit(all_findings):
         "details": details,
     })
 
+    # === H. BLOCKED/HOLD/SUPPRESSED 7日推移 ===
+    filter_state_path = os.path.join(SCRIPT_DIR, "proposal_filter_state.json")
+    filter_history = _load_json("safety_audit_log.json") or {"audits": []}
+    seven_days = (NOW - timedelta(days=7)).strftime("%Y-%m-%d")
+    recent_audits = [a for a in filter_history.get("audits", []) if a.get("date", "") >= seven_days]
+
+    if recent_audits:
+        details.append("")
+        details.append("--- BLOCKED/HOLD/SUPPRESS 7-Day History ---")
+        for a in recent_audits:
+            details.append("[%s] deviations:%d blocked:%d status:%s" % (
+                a.get("date", "?"), a.get("deviations", 0), a.get("blocked", 0), a.get("status", "?")))
+
+        total_blocked_7d = sum(a.get("blocked", 0) for a in recent_audits)
+        total_dev_7d = sum(a.get("deviations", 0) for a in recent_audits)
+        details.append("7d total: %d deviations, %d blocked" % (total_dev_7d, total_blocked_7d))
+
+    # === I. 高ズレ提案のカテゴリ別・タイプ別集計 ===
+    if high_deviation_proposals:
+        from collections import Counter as _Counter
+        dev_by_agent = _Counter(agent for agent, _, _ in high_deviation_proposals)
+        dev_by_score = _Counter()
+        for _, _, d in high_deviation_proposals:
+            if d >= 5:
+                dev_by_score["block(5+)"] += 1
+            elif d >= DEVIATION_THRESHOLD:
+                dev_by_score["hold(3-4)"] += 1
+            else:
+                dev_by_score["suppress(2)"] += 1
+
+        details.append("")
+        details.append("--- Deviation by Agent ---")
+        for agent, count in dev_by_agent.most_common():
+            details.append("  [%s] %d proposals" % (agent, count))
+        details.append("--- Deviation by Grade ---")
+        for grade, count in dev_by_score.most_common():
+            details.append("  [%s] %d proposals" % (grade, count))
+
+    # === J. 安全制御後の提案品質改善確認 ===
+    if recent_audits and len(recent_audits) >= 3:
+        first_half = recent_audits[:len(recent_audits)//2]
+        second_half = recent_audits[len(recent_audits)//2:]
+        dev_before = sum(a.get("deviations", 0) for a in first_half) / max(len(first_half), 1)
+        dev_after = sum(a.get("deviations", 0) for a in second_half) / max(len(second_half), 1)
+
+        details.append("")
+        details.append("--- Post-Control Quality Check ---")
+        details.append("Avg deviations: %.1f → %.1f (first vs recent half)" % (dev_before, dev_after))
+        if dev_after < dev_before * 0.7:
+            details.append("RESULT: Proposal quality IMPROVING after safety controls")
+        elif dev_after > dev_before * 1.3:
+            details.append("RESULT: Proposal quality DEGRADING — controls may need tightening")
+        else:
+            details.append("RESULT: Proposal quality STABLE")
+
     # ログ保存
+    blocked_count_today = sum(1 for _, _, d in high_deviation_proposals if d >= 5) if high_deviation_proposals else 0
     log_data = _load_json("safety_audit_log.json") or {"audits": []}
     log_data["audits"].append({
         "date": NOW.strftime("%Y-%m-%d"),
@@ -556,6 +612,7 @@ def run_safety_audit(all_findings):
         "triggers": len(triggers),
         "side_effects": len(side_effects),
         "deviations": len(high_deviation_proposals),
+        "blocked": blocked_count_today,
         "significant_changes": len(significant),
     })
     log_data["audits"] = log_data["audits"][-30:]
