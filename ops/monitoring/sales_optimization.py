@@ -624,6 +624,14 @@ def compare_sns_win_patterns():
             avg_l = d["likes"] / max(d["posts"], 1)
             details.append("  [%s] %d posts, avg likes:%.1f" % (c, d["posts"], avg_l))
 
+    # 保存率/プロフィール遷移率/Shopify遷移率を媒体別に
+    if any(platform_data[p]["saves"] > 0 for p in platform_data):
+        details.append("")
+        details.append("--- Save Rate by Platform ---")
+        for p, d in ranked:
+            save_rate = d["saves"] / max(d["views"], 1) * 100 if d["views"] > 0 else 0
+            details.append("  [%s] saves:%d, save rate:%.1f%%" % (p, d["saves"], save_rate))
+
     findings.append({
         "type": "info", "agent": "sns-manager",
         "message": "SNS win patterns: %d platforms, %d media types, %d categories compared" % (
@@ -750,6 +758,36 @@ def compare_cro_success():
             result = p.get("result", "pending")
             details.append("[%s] %s (%s)" % (result or "pending", p.get("message", "")[:50], p.get("adopted_date", "?")))
 
+    # CRO内容別分解
+    cro_subtypes = defaultdict(lambda: {"total": 0, "success": 0})
+    for p in cro_proposals:
+        msg = p.get("message", "").lower()
+        if "trust" in msg or "shipped" in msg or "inspected" in msg:
+            subtype = "trust_block"
+        elif "description" in msg or "説明" in msg or "expand" in msg:
+            subtype = "description_improvement"
+        elif "image" in msg or "画像" in msg or "photo" in msg:
+            subtype = "image_addition"
+        elif "condition" in msg or "状態" in msg:
+            subtype = "condition_detail"
+        elif "compare" in msg or "price" in msg or "sale" in msg:
+            subtype = "compare_at_price"
+        elif "policy" in msg or "shipping" in msg or "refund" in msg:
+            subtype = "policy_setup"
+        else:
+            subtype = "other_cro"
+
+        cro_subtypes[subtype]["total"] += 1
+        if p.get("result") == "success":
+            cro_subtypes[subtype]["success"] += 1
+
+    if cro_subtypes:
+        details.append("")
+        details.append("--- CRO Breakdown by Content ---")
+        for sub, d in sorted(cro_subtypes.items(), key=lambda x: -x[1]["success"]):
+            rate = d["success"] / max(d["total"], 1) * 100
+            details.append("  [%s] %d proposals, %d success (%.0f%%)" % (sub, d["total"], d["success"], rate))
+
     findings.append({
         "type": "info", "agent": "self-learning",
         "message": "CRO success rate: %.0f%% vs others %.0f%%" % (cro_rate, other_rate),
@@ -824,4 +862,93 @@ def run_sales_optimization(products, wp_posts, all_findings):
     result.extend(compare_article_referrals(wp_posts))
     result.extend(compare_cro_success())
 
+    # 比較結果を提案重み付けに反映
+    result.extend(_apply_comparison_to_weights())
+
     return result
+
+
+# ============================================================
+# 11. 比較結果→重み付け反映
+# ============================================================
+
+def _apply_comparison_to_weights():
+    """比較分析結果をshared_stateのscoring_weightsに反映"""
+    findings = []
+    pt = _load_json("proposal_tracking.json")
+    if not pt or not pt.get("proposals"):
+        return findings
+
+    shared_path = os.path.join(SCRIPT_DIR, "shared_state.json")
+    try:
+        with open(shared_path, "r", encoding="utf-8") as f:
+            state = json.load(f)
+    except (json.JSONDecodeError, IOError, FileNotFoundError):
+        return findings
+
+    weights = state.get("scoring_weights", {})
+    adjustments = []
+
+    # 提案タイプ別成功率から重み調整
+    accuracy = pt.get("summary", {}).get("accuracy_by_type", {})
+    for ptype, data in accuracy.items():
+        adopted = data.get("adopted", 0)
+        success = data.get("success", 0)
+        if adopted < 2:
+            continue  # データ不足は調整しない
+
+        rate = success / adopted
+
+        if rate >= 0.8:
+            # 高成功率 → データ根拠の重みを上げる
+            current = weights.get("data_evidence", 2)
+            if current < 3:
+                weights["data_evidence"] = min(current + 0.5, 4)
+                adjustments.append("data_evidence +0.5 (high success in %s: %.0f%%)" % (ptype, rate * 100))
+        elif rate < 0.3 and adopted >= 3:
+            # 低成功率 → 該当タイプの重みを下げる提案
+            adjustments.append("WARNING: %s has %.0f%% success rate — reduce weight or tighten criteria" % (ptype, rate * 100))
+
+    # SNS勝ちパターンから重み調整
+    posted = _load_json("sns_posted.json")
+    if posted and posted.get("history"):
+        history = posted["history"]
+        two_weeks = (NOW - timedelta(days=14)).strftime("%Y-%m-%d")
+        recent = [h for h in history if h.get("date", "") >= two_weeks and h.get("engagement")]
+        with_eng = [h for h in recent if sum(h.get("engagement", {}).values()) > 0]
+
+        if len(with_eng) >= 3:
+            # 媒体別平均を算出
+            platform_avg = defaultdict(list)
+            for h in with_eng:
+                eng = h.get("engagement", {})
+                likes = eng.get("likes", 0)
+                platform_avg[h.get("platform", "")].append(likes)
+
+            best_platform = max(platform_avg.items(), key=lambda x: sum(x[1]) / len(x[1]), default=None)
+            if best_platform:
+                adjustments.append("SNS best platform: %s (avg %.1f likes) → prioritize in next posts" % (
+                    best_platform[0], sum(best_platform[1]) / len(best_platform[1])))
+
+    if adjustments:
+        # shared_state を更新
+        state["scoring_weights"] = weights
+        state.setdefault("weight_adjustment_log", []).append({
+            "date": NOW.strftime("%Y-%m-%d"),
+            "adjustments": adjustments,
+        })
+        state["weight_adjustment_log"] = state["weight_adjustment_log"][-10:]  # 10件保持
+
+        try:
+            with open(shared_path, "w", encoding="utf-8") as f:
+                json.dump(state, f, indent=2, ensure_ascii=False)
+        except IOError:
+            pass
+
+        findings.append({
+            "type": "info", "agent": "self-learning",
+            "message": "Weight adjustment: %d changes applied from comparison results" % len(adjustments),
+            "details": ["=== Auto Weight Adjustments ==="] + adjustments,
+        })
+
+    return findings
