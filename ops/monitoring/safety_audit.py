@@ -411,6 +411,13 @@ def run_safety_audit(all_findings):
         details.append("")
         details.append("--- Deviation Alerts (threshold: %d) ---" % DEVIATION_THRESHOLD)
         details.append("Actions: score 2-3=suppress(score-5), 3-4=hold, 5+=block(downgrade to info)")
+        # blocked数カウント
+        blocked_count = sum(1 for _, _, d in high_deviation_proposals if d >= 5)
+        held_count = sum(1 for _, _, d in high_deviation_proposals if DEVIATION_THRESHOLD <= d < 5)
+        suppressed_count = sum(1 for _, _, d in high_deviation_proposals if 2 <= d < DEVIATION_THRESHOLD)
+
+        details.append("Blocked(→info): %d, Held: %d, Suppressed: %d" % (blocked_count, held_count, suppressed_count))
+
         for agent, msg, dev in high_deviation_proposals[:5]:
             # スコア内訳を表示
             breakdown = []
@@ -423,11 +430,21 @@ def run_safety_audit(all_findings):
                 breakdown.append("sales-push(+2)")
             if any(kw in text for kw in ["copy", "replicate", "clone"]):
                 breakdown.append("competitor-copy(+2)")
-            details.append("[score:%d] [%s] %s" % (dev, agent, msg))
+
+            action = "BLOCKED→info" if dev >= 5 else "HOLD" if dev >= DEVIATION_THRESHOLD else "SUPPRESS"
+            details.append("[score:%d] [%s] [%s] %s" % (dev, action, agent, msg))
             if breakdown:
                 details.append("  Breakdown: %s" % " + ".join(breakdown))
             else:
                 details.append("  Breakdown: genre-miss or trust-gap (minor)")
+
+        # 代表例を1件強調
+        if high_deviation_proposals:
+            top = high_deviation_proposals[0]
+            details.append("")
+            details.append("Representative example: [score:%d] %s → %s" % (
+                top[2], top[1],
+                "downgraded action→info (auto-apply blocked)" if top[2] >= 5 else "held for review"))
 
     # === F. 保守モード発動条件の妥当性 ===
     details.append("")
@@ -493,7 +510,7 @@ def run_safety_audit(all_findings):
                             "adjustments": ["SAFETY: Weight change limit reduced %.2f → %.2f (trend increasing)" % (current_limit, reduced)],
                         })
                         _save_json("shared_state.json", ss)
-                        details.append("Weight change limit: %.2f → %.2f (halved)" % (current_limit, reduced))
+                        details.append("CHANGED: Weight change limit: %.2f → %.2f (halved)" % (current_limit, reduced))
 
                     # 自動対応2: ズレ閾値を厳しくする
                     if safety.get("consecutive_high_deviation", 0) >= 2:
@@ -512,7 +529,7 @@ def run_safety_audit(all_findings):
                         restored = min(ss["_weight_change_limit"] * 1.5, MAX_WEIGHT_CHANGE_SINGLE)
                         ss["_weight_change_limit"] = round(restored, 2)
                         _save_json("shared_state.json", ss)
-                        details.append("Weight change limit restored: → %.2f (trend improving)" % restored)
+                        details.append("CHANGED: Weight change limit restored: → %.2f (trend improving)" % restored)
                 else:
                     details.append("TREND: Stable (%.1f → %.1f avg/day)" % (t1, t2))
 
