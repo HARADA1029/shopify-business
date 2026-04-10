@@ -420,14 +420,55 @@ def analyze_article_performance(wp_posts):
         })
 
     # blog_state に PDCA 履歴を蓄積
+    today_metrics = {
+        "no_images": sum(1 for p in wp_posts if not re.findall(r"<img", str(p.get("content", {}).get("rendered", "") if isinstance(p.get("content"), dict) else p.get("content", "")))),
+        "no_category": sum(1 for p in wp_posts if len(p.get("categories", [])) <= 1),
+        "no_cta": sum(1 for p in wp_posts if "hd-toys-store-japan" not in str(p.get("content", {}).get("rendered", "") if isinstance(p.get("content"), dict) else p.get("content", "")).lower()),
+        "no_internal_links": sum(1 for p in wp_posts if "hd-bodyscience.com" not in str(p.get("content", {}).get("rendered", "") if isinstance(p.get("content"), dict) else p.get("content", "")).lower()),
+        "short_content": sum(1 for p in wp_posts if len(re.sub(r"<[^>]+>", "", str(p.get("content", {}).get("rendered", "") if isinstance(p.get("content"), dict) else p.get("content", ""))).split()) < 500),
+    }
+
     state["pdca_history"].append({
         "date": NOW.strftime("%Y-%m-%d"),
         "total_articles": len(wp_posts),
         "issues_found": len(improvements),
         "type_stats": {k: {"count": v["count"], "avg_words": round(v["total_words"] / max(v["count"], 1))} for k, v in type_stats.items()},
+        "quality_metrics": today_metrics,
     })
-    # 直近30日分のみ
     state["pdca_history"] = [h for h in state["pdca_history"] if h.get("date", "") >= (NOW - timedelta(days=30)).strftime("%Y-%m-%d")]
+
+    # === 予防提案後の改善追跡 ===
+    if len(state["pdca_history"]) >= 2:
+        prev = state["pdca_history"][-2].get("quality_metrics", {})
+        curr = today_metrics
+        if prev:
+            tracking_details = ["--- article_theme Quality Tracking ---"]
+            improved = []
+            worsened = []
+            for metric in ["no_images", "no_category", "no_cta", "no_internal_links", "short_content"]:
+                p_val = prev.get(metric, 0)
+                c_val = curr.get(metric, 0)
+                if c_val < p_val:
+                    improved.append("%s: %d → %d (improved)" % (metric, p_val, c_val))
+                elif c_val > p_val:
+                    worsened.append("%s: %d → %d (worsened)" % (metric, p_val, c_val))
+
+            if improved:
+                tracking_details.append("Improved:")
+                tracking_details.extend(["  %s" % i for i in improved])
+            if worsened:
+                tracking_details.append("Worsened:")
+                tracking_details.extend(["  %s" % w for w in worsened])
+            if not improved and not worsened:
+                tracking_details.append("No change from previous run")
+
+            findings.append({
+                "type": "info" if not worsened else "suggestion",
+                "agent": "blog-analyst",
+                "message": "Blog quality tracking: %d improved, %d worsened" % (len(improved), len(worsened)),
+                "details": tracking_details,
+            })
+
     _save_blog_state(state)
 
     return findings

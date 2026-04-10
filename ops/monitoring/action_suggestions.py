@@ -1041,6 +1041,34 @@ def generate_all_suggestions(products, wp_posts, wp_categories):
     if prohibited:
         all_findings = [f for f in all_findings if _classify_proposal_type(f.get("message", ""), f.get("agent", "")) not in prohibited]
 
+    # Expired-then-reproposed conflict 防止:
+    # 最近expiredになったタイプ+メッセージと同一内容の提案を除外
+    tracking = _load_proposal_tracking()
+    if tracking:
+        recent_expired = set()
+        for p in tracking.get("proposals", []):
+            if p.get("status") == "expired":
+                # メッセージの主要キーワードを抽出してマッチ用に保持
+                words = [w.lower() for w in p.get("message", "").split() if len(w) > 5][:3]
+                if words:
+                    recent_expired.add(tuple(words))
+
+        if recent_expired:
+            filtered = []
+            conflict_removed = 0
+            for f in all_findings:
+                msg_words = [w.lower() for w in f.get("message", "").split() if len(w) > 5][:3]
+                is_conflict = any(
+                    sum(1 for w in msg_words if w in expired_words) >= 2
+                    for expired_words in recent_expired
+                )
+                if is_conflict:
+                    conflict_removed += 1
+                else:
+                    filtered.append(f)
+            if conflict_removed > 0:
+                all_findings = filtered
+
     # スコアリング
     for f in all_findings:
         _score_proposal(f, shared_state)

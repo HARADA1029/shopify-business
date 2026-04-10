@@ -561,16 +561,23 @@ def _analyze_warning_trends():
             else:
                 causes["other"] += count
 
-        cause_labels = {
-            "expired_conflict": "Expired-then-reproposed conflict",
-            "platform_skip": "Platform skip (posting failure)",
-            "engagement_low": "Low engagement / weak results",
-            "token_issue": "Token / authentication issue",
-            "other": "Other",
-        }
-        for cause, count in sorted(causes.items(), key=lambda x: -x[1]):
-            if count > 0:
-                recurrence_details.append("  [%d] %s" % (count, cause_labels[cause]))
+        # 提案品質問題と基盤問題を分離
+        proposal_issues = causes["expired_conflict"] + causes["engagement_low"] + causes["other"]
+        infra_issues = causes["platform_skip"] + causes["token_issue"]
+
+        recurrence_details.append("Proposal quality issues: %d" % proposal_issues)
+        if causes["expired_conflict"] > 0:
+            recurrence_details.append("  [%d] Expired-then-reproposed (proposal logic fix applied)" % causes["expired_conflict"])
+        if causes["engagement_low"] > 0:
+            recurrence_details.append("  [%d] Low engagement (content/targeting issue)" % causes["engagement_low"])
+        if causes["other"] > 0:
+            recurrence_details.append("  [%d] Other proposal issues" % causes["other"])
+
+        recurrence_details.append("Infrastructure issues: %d (not counted against proposal quality)" % infra_issues)
+        if causes["platform_skip"] > 0:
+            recurrence_details.append("  [%d] Platform skip → check workflow execution" % causes["platform_skip"])
+        if causes["token_issue"] > 0:
+            recurrence_details.append("  [%d] Token/auth → check API credentials" % causes["token_issue"])
 
     # === article_theme 悪化予防 ===
     article_warnings = [w for w in warnings if any(kw in w.get("warning", "").lower() for kw in ["article", "blog", "write", "content"])]
