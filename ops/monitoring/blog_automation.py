@@ -581,9 +581,115 @@ def _sync_to_proposal_tracking(wp_posts):
 # メインエントリポイント
 # ============================================================
 
+def report_rejection_summary():
+    """ブログ投稿拒否サマリを生成"""
+    findings = []
+    state = _load_blog_state()
+    rejections = state.get("rejections", [])
+
+    if not rejections:
+        findings.append({
+            "type": "ok", "agent": "blog-analyst",
+            "message": "Blog rejections: 0 articles rejected by quality gate",
+        })
+        return findings
+
+    # 直近7日
+    week_ago = (NOW - timedelta(days=7)).strftime("%Y-%m-%d")
+    recent = [r for r in rejections if r.get("date", "") >= week_ago]
+
+    # 拒否理由の集計
+    reason_counts = Counter()
+    for r in recent:
+        for issue in r.get("issues", []):
+            # [no_images] / [no_cta] 等のタグを抽出
+            tag = issue.split("]")[0].replace("[", "") if "]" in issue else "other"
+            reason_counts[tag] += 1
+
+    details = [
+        "=== Blog Rejection Summary (7d) ===",
+        "Total rejected: %d (all-time: %d)" % (len(recent), len(rejections)),
+    ]
+
+    if reason_counts:
+        details.append("--- Rejection reasons ---")
+        for reason, count in reason_counts.most_common():
+            details.append("  [%d] %s" % (count, reason))
+
+    # 直近の拒否例
+    if recent:
+        details.append("--- Recent rejections ---")
+        for r in recent[-3:]:
+            details.append("  [%s] %s: %s" % (r.get("date", "?"), r.get("title", "?")[:35], "; ".join(r.get("issues", [])[:2])))
+
+    findings.append({
+        "type": "suggestion" if len(recent) > 2 else "info",
+        "agent": "blog-analyst",
+        "message": "Blog rejections: %d in 7 days, top reason: %s" % (
+            len(recent), reason_counts.most_common(1)[0][0] if reason_counts else "none"),
+        "details": details,
+    })
+    return findings
+
+
+def report_passed_article_performance():
+    """5項目通過記事の成果を追跡"""
+    findings = []
+    state = _load_blog_state()
+    generated = state.get("articles_generated", [])
+
+    if not generated:
+        return findings
+
+    # 品質データ付き記事（5項目通過）
+    passed = [a for a in generated if a.get("quality", {}).get("passed")]
+    if not passed:
+        return findings
+
+    details = [
+        "=== Quality-Passed Article Performance ===",
+        "Total passed: %d articles" % len(passed),
+    ]
+
+    # 品質スコア集計
+    total_words = sum(a.get("quality", {}).get("words", 0) for a in passed)
+    total_imgs = sum(a.get("quality", {}).get("images", 0) for a in passed)
+    avg_words = total_words / max(len(passed), 1)
+    avg_imgs = total_imgs / max(len(passed), 1)
+    details.append("Avg quality: %.0f words, %.1f images" % (avg_words, avg_imgs))
+
+    # 設定充足率
+    with_cats = sum(1 for a in passed if a.get("settings", {}).get("categories"))
+    with_tags = sum(1 for a in passed if a.get("settings", {}).get("tags"))
+    with_featured = sum(1 for a in passed if a.get("settings", {}).get("featured_media"))
+    details.append("Category set: %d/%d (%.0f%%)" % (with_cats, len(passed), with_cats / max(len(passed), 1) * 100))
+    details.append("Tags set: %d/%d (%.0f%%)" % (with_tags, len(passed), with_tags / max(len(passed), 1) * 100))
+    details.append("Featured image: %d/%d (%.0f%%)" % (with_featured, len(passed), with_featured / max(len(passed), 1) * 100))
+
+    # 直近の記事リスト
+    details.append("--- Recent passed articles ---")
+    for a in passed[-5:]:
+        q = a.get("quality", {})
+        details.append("  [%s] %s (%dw, %dimg)" % (a.get("date", "?"), a.get("title", "?")[:35], q.get("words", 0), q.get("images", 0)))
+
+    findings.append({
+        "type": "info", "agent": "blog-analyst",
+        "message": "Passed articles: %d total, avg %.0fw %.1fimg, %.0f%% with category" % (
+            len(passed), avg_words, avg_imgs, with_cats / max(len(passed), 1) * 100),
+        "details": details,
+    })
+    return findings
+
+
 def run_blog_automation(products, wp_posts, wp_categories):
     """ブログ自動化の全機能を実行して findings を返す"""
     all_findings = []
+
+    # 0. ブログ投稿拒否サマリ
+    all_findings.extend(report_rejection_summary())
+
+    # 0b. 5項目通過記事の成果追跡
+    all_findings.extend(report_passed_article_performance())
 
     # 1. 記事テーマ候補
     all_findings.extend(suggest_article_topics(products, wp_posts, wp_categories))

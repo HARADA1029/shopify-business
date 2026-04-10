@@ -593,6 +593,18 @@ def main():
         for issue in qc["issues"]:
             print("  - %s" % issue)
 
+        # 拒否ログを保存
+        blog_state.setdefault("rejections", []).append({
+            "date": today_str,
+            "handle": handle,
+            "title": title[:80],
+            "category": product_type,
+            "issues": qc["issues"],
+            "word_count": qc["word_count"],
+            "img_count": qc["img_count"],
+        })
+        save_blog_state(blog_state)
+
         # 画像不足の場合、商品画像が少ないのが原因なら警告だけ出して続行
         image_only_issue = all("image" in i.lower() for i in qc["issues"])
         if image_only_issue and len(product.get("images", [])) < MIN_IMAGES:

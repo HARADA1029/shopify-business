@@ -1645,6 +1645,44 @@ def generate_markdown_report(all_findings, store_info):
                 lines.append(f"- {d}")
             lines.append("")
 
+    # 🏗️ 基盤問題サマリ
+    infra_path = os.path.join(SCRIPT_DIR, "infra_tasks.json")
+    if os.path.exists(infra_path):
+        try:
+            with open(infra_path, "r", encoding="utf-8") as f:
+                infra = json.load(f)
+            open_tasks = [t for t in infra.get("tasks", []) if t.get("status") == "open"]
+            if open_tasks:
+                lines.append("## 🏗️ 基盤問題サマリ")
+                lines.append("")
+                lines.append(f"オープン: {len(open_tasks)}件（提案品質とは別管理）")
+                lines.append("")
+                for t in open_tasks:
+                    lines.append(f"- [{t.get('priority', '?').upper()}] [{t.get('agent', '?')}] {t.get('description', '')[:60]}")
+                    lines.append(f"  累計: {t.get('count', 0)}回 | Fix: {t.get('fix', '')[:60]}")
+                lines.append("")
+        except (json.JSONDecodeError, IOError):
+            pass
+
+    # 📝 ブログ投稿拒否サマリ
+    rejection_findings = [f for f in all_findings if "Blog rejections" in f.get("message", "")]
+    if rejection_findings:
+        lines.append("## 📝 ブログ投稿拒否サマリ")
+        lines.append("")
+        for f in rejection_findings:
+            lines.extend(_format_finding_line(f))
+            lines.append("")
+
+    # 📊 5項目通過記事の成果
+    passed_findings = [f for f in all_findings if "Passed articles" in f.get("message", "")]
+    if passed_findings:
+        lines.append("## 📊 品質通過記事の成果")
+        lines.append("")
+        for f in passed_findings:
+            for d in f.get("details", []):
+                lines.append(f"- {d}")
+            lines.append("")
+
     # 🐛 バグ・異常監査
     bug_findings = [f for f in all_findings if "Bug audit" in f.get("message", "") or "Quality anomal" in f.get("message", "")]
     if bug_findings:
