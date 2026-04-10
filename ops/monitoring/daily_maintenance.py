@@ -270,8 +270,47 @@ def _audit_logs():
 # 7. 負けパターン学習
 # ============================================================
 
+# needs_reinforcement 判定基準（数値固定）
+REINFORCEMENT_THRESHOLDS = {
+    "stale_proposals_min": 3,         # pending>14日が3件以上で要補強
+    "no_result_adopted_min": 2,       # 採用済み結果なしが2件以上
+    "missing_log_files_min": 2,       # ログ欠損が2ファイル以上
+    "stale_log_files_min": 3,         # staleログが3ファイル以上
+    "api_high_missing_min": 1,        # HIGH APIが1件以上欠損
+    "no_today_proposals": True,       # 今日の提案が0件
+    "no_active_experiments": True,    # 活動実験が0件
+}
+
+
+def _judge_reinforcement_need(all_issues):
+    """needs_reinforcement を数値基準で判定"""
+    counts = {
+        "stale_proposals": sum(1 for i in all_issues if "stale proposals" in i.lower()),
+        "no_result": sum(1 for i in all_issues if "without result" in i.lower()),
+        "missing_logs": sum(1 for i in all_issues if "missing" in i.lower() and ".json" in i.lower()),
+        "stale_logs": sum(1 for i in all_issues if "stale" in i.lower() and ".json" in i.lower()),
+        "api_high": sum(1 for i in all_issues if "[HIGH]" in i and "token" in i.lower()),
+        "no_proposals_today": any("No new proposals" in i for i in all_issues),
+        "no_experiments": any("No active experiments" in i for i in all_issues),
+    }
+
+    triggers = []
+    if counts["stale_proposals"] >= REINFORCEMENT_THRESHOLDS["stale_proposals_min"]:
+        triggers.append("stale_proposals(%d)" % counts["stale_proposals"])
+    if counts["no_result"] >= REINFORCEMENT_THRESHOLDS["no_result_adopted_min"]:
+        triggers.append("no_result_adopted(%d)" % counts["no_result"])
+    if counts["missing_logs"] >= REINFORCEMENT_THRESHOLDS["missing_log_files_min"]:
+        triggers.append("missing_logs(%d)" % counts["missing_logs"])
+    if counts["stale_logs"] >= REINFORCEMENT_THRESHOLDS["stale_log_files_min"]:
+        triggers.append("stale_logs(%d)" % counts["stale_logs"])
+    if counts["api_high"] >= REINFORCEMENT_THRESHOLDS["api_high_missing_min"]:
+        triggers.append("api_missing(%d)" % counts["api_high"])
+
+    return triggers
+
+
 def _analyze_loss_patterns():
-    """no_reaction / reaction_only の共通点を分析"""
+    """no_reaction / reaction_only の共通点を提案タイプ別・カテゴリ別に分析"""
     findings_details = []
     pt = _load_json("proposal_tracking.json")
     if not pt:
@@ -281,24 +320,97 @@ def _analyze_loss_patterns():
     no_reaction = [p for p in proposals if p.get("result") in ("no_reaction", "failed")]
     reaction_only = [p for p in proposals if p.get("result") in ("reaction_only", "weak")]
 
+    # タイプ別分解
     if no_reaction:
         types = Counter(p.get("type", "?") for p in no_reaction)
-        findings_details.append("--- No Reaction patterns (%d) ---" % len(no_reaction))
-        for t, c in types.most_common(3):
+        findings_details.append("--- No Reaction by type (%d total) ---" % len(no_reaction))
+        for t, c in types.most_common(5):
+            examples = [p.get("message", "")[:40] for p in no_reaction if p.get("type") == t][:2]
             findings_details.append("  [%s] %d times" % (t, c))
+            for ex in examples:
+                findings_details.append("    ex: %s" % ex)
 
     if reaction_only:
         types = Counter(p.get("type", "?") for p in reaction_only)
-        findings_details.append("--- Reaction Only patterns (%d) ---" % len(reaction_only))
-        for t, c in types.most_common(3):
+        findings_details.append("--- Reaction Only by type (%d total) ---" % len(reaction_only))
+        for t, c in types.most_common(5):
+            examples = [p.get("message", "")[:40] for p in reaction_only if p.get("type") == t][:2]
             findings_details.append("  [%s] %d times" % (t, c))
+            for ex in examples:
+                findings_details.append("    ex: %s" % ex)
 
-    # 同じ失敗の繰り返しチェック
+    # カテゴリ別分解（メッセージからカテゴリを推定）
+    all_losses = no_reaction + reaction_only
+    if all_losses:
+        cat_keywords = {
+            "Trading Cards": ["card", "pokemon card", "tcg"],
+            "Action Figures": ["figure", "figuarts", "beyblade"],
+            "Scale Figures": ["scale", "nendoroid", "banpresto"],
+            "Electronic Toys": ["tamagotchi", "electronic", "digivice"],
+            "Video Games": ["game", "playstation", "nintendo"],
+        }
+        cat_losses = Counter()
+        for p in all_losses:
+            msg = p.get("message", "").lower()
+            for cat, kws in cat_keywords.items():
+                if any(kw in msg for kw in kws):
+                    cat_losses[cat] += 1
+                    break
+
+        if cat_losses:
+            findings_details.append("--- Loss by category ---")
+            for cat, c in cat_losses.most_common():
+                findings_details.append("  [%s] %d losses" % (cat, c))
+
+    # 繰り返し失敗
     repeated = [t for t, c in Counter(p.get("type", "") for p in no_reaction).items() if c >= 3]
     if repeated:
         findings_details.append("ALERT: Repeated failures in: %s → reduce weight or change criteria" % ", ".join(repeated))
 
+    # 失敗共通点の抽出
+    if all_losses:
+        common = []
+        high_price = sum(1 for p in all_losses if "$500" in p.get("message", "") or "high" in p.get("message", "").lower())
+        niche = sum(1 for p in all_losses if any(kw in p.get("message", "").lower() for kw in ["goods", "media", "book"]))
+        if high_price > 1:
+            common.append("High-price items tend to fail (%d cases)" % high_price)
+        if niche > 1:
+            common.append("Niche categories tend to fail (%d cases)" % niche)
+        if common:
+            findings_details.append("--- Common failure factors ---")
+            findings_details.extend(common)
+
     return findings_details
+
+
+def _check_fix_consistency(all_issues, all_fixes):
+    """自動修正が次回提案と矛盾しないか整合性チェック"""
+    inconsistencies = []
+
+    # expired にした提案と同じタイプの新規提案が同日にないか
+    pt = _load_json("proposal_tracking.json")
+    if not pt:
+        return inconsistencies
+
+    today = NOW.strftime("%Y-%m-%d")
+    today_expired_types = set(
+        p.get("type", "") for p in pt.get("proposals", [])
+        if p.get("status") == "expired" and p.get("date", "") == today
+    )
+    today_new_same_type = [
+        p for p in pt.get("proposals", [])
+        if p.get("status") == "pending" and p.get("date", "") == today
+        and p.get("type", "") in today_expired_types
+    ]
+
+    if today_new_same_type:
+        for p in today_new_same_type:
+            inconsistencies.append(
+                "[WARN] Auto-expired type '%s' but new proposal of same type added today: %s"
+                % (p.get("type", ""), p.get("message", "")[:40])
+            )
+
+    return inconsistencies
 
 
 # ============================================================
@@ -377,16 +489,21 @@ def run_daily_maintenance():
     # 自動補強
     reinforced = _auto_reinforce(all_issues)
 
-    # 状態判定
+    # 整合性チェック
+    inconsistencies = _check_fix_consistency(all_issues, all_fixes)
+
+    # 状態判定（数値基準）
     critical = sum(1 for i in all_issues if "[CRITICAL]" in i or "[HIGH]" in i)
     warnings = sum(1 for i in all_issues if "[WARN]" in i)
     info = sum(1 for i in all_issues if "[INFO]" in i)
 
+    reinforcement_triggers = _judge_reinforcement_need(all_issues)
+
     if critical > 0:
         status = "requires_attention"
-    elif warnings > 0:
+    elif reinforcement_triggers:
         status = "needs_reinforcement"
-    elif all_issues:
+    elif warnings > 0:
         status = "minor_gaps"
     else:
         status = "healthy"
@@ -420,6 +537,17 @@ def run_daily_maintenance():
     if loss_details:
         details.append("")
         details.extend(loss_details)
+
+    if reinforcement_triggers:
+        details.append("")
+        details.append("--- Reinforcement Triggers (numeric) ---")
+        for t in reinforcement_triggers:
+            details.append("TRIGGER: %s" % t)
+
+    if inconsistencies:
+        details.append("")
+        details.append("--- Fix Consistency Warnings ---")
+        details.extend(inconsistencies)
 
     severity = "suggestion" if critical > 0 else "info"
     result_findings.append({
