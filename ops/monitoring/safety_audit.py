@@ -641,6 +641,26 @@ def run_safety_audit(all_findings):
             for agent, count in high_dev_agents:
                 details.append("[IMPROVE] %s: %d deviations → review research direction and proposal criteria" % (agent, count))
 
+                # sns-manager の偏差原因を詳細分解
+                if agent == "sns-manager":
+                    sns_devs = [(msg, dev) for a, msg, dev in high_deviation_proposals if a == "sns-manager"]
+                    sns_causes = {"genre_miss": 0, "sales_push": 0, "new_product": 0, "trust_gap": 0, "competitor_copy": 0}
+                    for msg, dev in sns_devs:
+                        t = msg.lower()
+                        if not any(kw in t for kw in ["figure", "toy", "card", "game", "anime", "pokemon", "collectible", "japan"]):
+                            sns_causes["genre_miss"] += 1
+                        if any(kw in t for kw in ["buy now", "limited time", "hurry", "act now", "sale"]):
+                            sns_causes["sales_push"] += 1
+                        if any(kw in t for kw in ["brand new", "factory sealed", "pre-order"]):
+                            sns_causes["new_product"] += 1
+                        if "product" in t and not any(kw in t for kw in ["condition", "inspected", "authentic"]):
+                            sns_causes["trust_gap"] += 1
+                    active_causes = [(c, n) for c, n in sns_causes.items() if n > 0]
+                    if active_causes:
+                        details.append("  sns-manager deviation causes:")
+                        for cause, n in sorted(active_causes, key=lambda x: -x[1]):
+                            details.append("    [%d] %s" % (n, cause))
+
         # 偏差の多い提案タイプ → shared_state に記録して次回重み調整に反映
         type_dev = _C2()
         for _, msg, dev in high_deviation_proposals:
@@ -720,6 +740,83 @@ def run_safety_audit(all_findings):
                 pt["summary"]["total"] = len(pt["proposals"])
                 pt["summary"]["last_updated"] = NOW.strftime("%Y-%m-%d")
                 _save_json("proposal_tracking.json", pt)
+
+    # === N. 抑制後の効果確認 ===
+    prev_log_data = _load_json("safety_audit_log.json")
+    ss_data = _load_json("shared_state.json")
+    if prev_log_data and ss_data:
+        suppressed_types = ss_data.get("deviation_suppression", {})
+        if suppressed_types:
+            audits_list = prev_log_data.get("audits", [])
+            seven_d = (NOW - timedelta(days=7)).strftime("%Y-%m-%d")
+            recent_audits_for_check = [a for a in audits_list if a.get("date", "") >= seven_d]
+
+            if len(recent_audits_for_check) >= 2:
+                # 抑制適用前後の偏差数を比較
+                mid = len(recent_audits_for_check) // 2
+                before_avg = sum(a.get("deviations", 0) for a in recent_audits_for_check[:mid]) / max(mid, 1)
+                after_avg = sum(a.get("deviations", 0) for a in recent_audits_for_check[mid:]) / max(len(recent_audits_for_check) - mid, 1)
+
+                details.append("")
+                details.append("--- Suppression Effect Check ---")
+                details.append("Suppressed types: %s" % ", ".join(suppressed_types.keys()))
+                details.append("Deviations: %.1f → %.1f (before vs after suppression)" % (before_avg, after_avg))
+                if after_avg < before_avg * 0.7:
+                    details.append("EFFECTIVE: Suppression reduced deviations by %.0f%%" % ((1 - after_avg / max(before_avg, 0.1)) * 100))
+                elif after_avg > before_avg * 1.2:
+                    details.append("INEFFECTIVE: Deviations increased despite suppression → review root cause")
+                else:
+                    details.append("PARTIAL: Deviations stable — continue monitoring")
+
+    # === O. 品質改善成功の対策別分解 ===
+    if pt_data and prev_log_data:
+        proposals = pt_data.get("proposals", [])
+        recent_success = [p for p in proposals if p.get("result") == "success"
+                         and p.get("result_date", "") >= (NOW - timedelta(days=14)).strftime("%Y-%m-%d")]
+
+        if recent_success:
+            # 対策タイプ別に成功を分解
+            success_by_action = Counter()
+            for p in recent_success:
+                msg = p.get("message", "").lower()
+                if "trust" in msg or "shipped" in msg or "inspected" in msg:
+                    success_by_action["trust_improvement"] += 1
+                elif "description" in msg or "expand" in msg or "content" in msg:
+                    success_by_action["description_improvement"] += 1
+                elif "image" in msg or "photo" in msg:
+                    success_by_action["image_addition"] += 1
+                elif "category" in msg or "activate" in msg or "draft" in msg:
+                    success_by_action["category_expansion"] += 1
+                elif "price" in msg or "sync" in msg:
+                    success_by_action["price_optimization"] += 1
+                elif "blog" in msg or "article" in msg:
+                    success_by_action["blog_content"] += 1
+                elif "policy" in msg or "shipping" in msg or "refund" in msg:
+                    success_by_action["policy_setup"] += 1
+                elif "quality" in msg or "deviation" in msg or "safety" in msg:
+                    success_by_action["quality_control"] += 1
+                else:
+                    success_by_action["other"] += 1
+
+            if success_by_action:
+                details.append("")
+                details.append("--- Success by Action Type (14d) ---")
+                for action, count in success_by_action.most_common():
+                    details.append("  [%d] %s" % (count, action))
+
+                # 最も効果的な対策を学習
+                best_action = success_by_action.most_common(1)[0]
+                details.append("Most effective: %s (%d successes) → increase weight for this type" % (best_action[0], best_action[1]))
+
+                # shared_state に学習結果を記録
+                if ss_data:
+                    ss_data.setdefault("success_by_action_history", []).append({
+                        "date": NOW.strftime("%Y-%m-%d"),
+                        "actions": dict(success_by_action),
+                        "best": best_action[0],
+                    })
+                    ss_data["success_by_action_history"] = ss_data["success_by_action_history"][-10:]
+                    _save_json("shared_state.json", ss_data)
 
     # ログ保存
     blocked_count_today = sum(1 for _, _, d in high_deviation_proposals if d >= 5) if high_deviation_proposals else 0
