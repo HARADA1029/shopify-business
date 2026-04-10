@@ -602,6 +602,99 @@ def run_safety_audit(all_findings):
         else:
             details.append("RESULT: Proposal quality STABLE")
 
+    # === K. 偏差の多いエージェント/タイプを改善対象に ===
+    if high_deviation_proposals:
+        from collections import Counter as _C2
+        agent_dev_counts = _C2(agent for agent, _, _ in high_deviation_proposals)
+
+        # 偏差3件以上のエージェントを改善対象として明示
+        high_dev_agents = [(a, c) for a, c in agent_dev_counts.most_common() if c >= 3]
+        if high_dev_agents:
+            details.append("")
+            details.append("--- Agents Flagged for Improvement ---")
+            for agent, count in high_dev_agents:
+                details.append("[IMPROVE] %s: %d deviations → review research direction and proposal criteria" % (agent, count))
+
+        # 偏差の多い提案タイプ → shared_state に記録して次回重み調整に反映
+        type_dev = _C2()
+        for _, msg, dev in high_deviation_proposals:
+            if dev >= DEVIATION_THRESHOLD:
+                from action_suggestions import _classify_proposal_type
+                ptype = _classify_proposal_type(msg, "")
+                type_dev[ptype] += 1
+
+        high_dev_types = [(t, c) for t, c in type_dev.most_common() if c >= 2]
+        if high_dev_types:
+            details.append("")
+            details.append("--- Proposal Types with High Deviation ---")
+            ss = _load_json("shared_state.json")
+            if ss:
+                dev_weights = ss.setdefault("deviation_suppression", {})
+                for ptype, count in high_dev_types:
+                    current = dev_weights.get(ptype, 1.0)
+                    reduced = max(current - 0.2, 0.3)
+                    dev_weights[ptype] = round(reduced, 1)
+                    details.append("[SUPPRESS] %s: %d deviations → weight %.1f → %.1f" % (ptype, count, current, reduced))
+
+                ss["deviation_suppression"] = dev_weights
+                ss.setdefault("weight_adjustment_log", []).append({
+                    "date": NOW.strftime("%Y-%m-%d"),
+                    "adjustments": ["Deviation suppression: %s" % str(dict(high_dev_types))],
+                })
+                _save_json("shared_state.json", ss)
+
+    # === L. safety_audit_log と proposal_history の品質改善連動 ===
+    pt = _load_json("proposal_tracking.json")
+    prev_log = _load_json("safety_audit_log.json")
+    if pt and prev_log and prev_log.get("audits"):
+        audits = prev_log["audits"]
+        recent = [a for a in audits if a.get("date", "") >= (NOW - timedelta(days=7)).strftime("%Y-%m-%d")]
+
+        if len(recent) >= 3:
+            first = recent[:len(recent)//2]
+            second = recent[len(recent)//2:]
+            dev_before = sum(a.get("deviations", 0) for a in first) / max(len(first), 1)
+            dev_after = sum(a.get("deviations", 0) for a in second) / max(len(second), 1)
+
+            # 改善している場合: 成功として proposal_tracking に記録
+            import hashlib
+            quality_hash = hashlib.md5(("quality-check:%s" % NOW.strftime("%Y-%m-%d")).encode()).hexdigest()[:10]
+            existing = set(p.get("message_hash", "") for p in pt.get("proposals", []))
+
+            if quality_hash not in existing:
+                if dev_after < dev_before * 0.7 and dev_before > 0:
+                    pt["proposals"].append({
+                        "id": "P-%s-qc" % NOW.strftime("%y%m%d"),
+                        "message_hash": quality_hash,
+                        "date": NOW.strftime("%Y-%m-%d"),
+                        "agent": "project-orchestrator",
+                        "type": "page_improvement",
+                        "message": "Quality improvement confirmed: deviations %.1f → %.1f" % (dev_before, dev_after),
+                        "score": 15, "status": "adopted", "adopted_date": NOW.strftime("%Y-%m-%d"),
+                        "result": "success", "result_date": NOW.strftime("%Y-%m-%d"),
+                        "next_action": "Continue current safety controls",
+                    })
+                    details.append("")
+                    details.append("LINKED: Quality improvement recorded in proposal_tracking (success)")
+                elif dev_after > dev_before * 1.3 and dev_before > 0:
+                    pt["proposals"].append({
+                        "id": "P-%s-qd" % NOW.strftime("%y%m%d"),
+                        "message_hash": quality_hash,
+                        "date": NOW.strftime("%Y-%m-%d"),
+                        "agent": "project-orchestrator",
+                        "type": "page_improvement",
+                        "message": "Quality degradation detected: deviations %.1f → %.1f" % (dev_before, dev_after),
+                        "score": 20, "status": "pending",
+                        "adopted_date": None, "result": None, "result_date": None,
+                        "next_action": "Tighten safety controls or review deviation sources",
+                    })
+                    details.append("")
+                    details.append("LINKED: Quality degradation recorded in proposal_tracking (pending fix)")
+
+                pt["summary"]["total"] = len(pt["proposals"])
+                pt["summary"]["last_updated"] = NOW.strftime("%Y-%m-%d")
+                _save_json("proposal_tracking.json", pt)
+
     # ログ保存
     blocked_count_today = sum(1 for _, _, d in high_deviation_proposals if d >= 5) if high_deviation_proposals else 0
     log_data = _load_json("safety_audit_log.json") or {"audits": []}
