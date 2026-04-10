@@ -569,36 +569,74 @@ def run_safety_audit(all_findings):
     details.append("")
     details.append("=== Priority Watch Items ===")
 
-    # 1. trust強化の成果
+    # 1. trust強化の成果（ブログCTA/SNS別）
     if ss_data:
         trust_w = ss_data.get("scoring_weights", {}).get("trust_building", 2)
         history = ss_data.get("success_by_action_history", [])
         recent_trust = history[-1].get("actions", {}).get("trust_improvement", 0) if history else 0
         details.append("[TRUST] Weight: %.1f, recent successes: %d" % (trust_w, recent_trust))
 
+        # ブログCTAのtrust成果
+        if pt_data:
+            blog_trust_s = sum(1 for p in pt_data.get("proposals", [])
+                              if p.get("result") == "success"
+                              and any(kw in p.get("message", "").lower() for kw in ["blog", "article", "cta"])
+                              and any(kw in p.get("message", "").lower() for kw in ["trust", "inspect", "shipped", "condition"]))
+            sns_trust_s = sum(1 for p in pt_data.get("proposals", [])
+                             if p.get("result") == "success"
+                             and any(kw in p.get("message", "").lower() for kw in ["sns", "instagram", "facebook", "post"])
+                             and any(kw in p.get("message", "").lower() for kw in ["trust", "inspect", "shipped", "condition"]))
+            product_trust_s = max(recent_trust - blog_trust_s - sns_trust_s, 0)
+            details.append("  Product: %d | Blog CTA: %d | SNS: %d" % (product_trust_s, blog_trust_s, sns_trust_s))
+
+        # 7日比較
+        if history and len(history) >= 2:
+            prev_trust = history[-2].get("actions", {}).get("trust_improvement", 0) if len(history) >= 2 else 0
+            diff = recent_trust - prev_trust
+            details.append("  vs prev: %+d (%s)" % (diff, "improving" if diff > 0 else "stable" if diff == 0 else "declining"))
+
     # 2. blog_content 抑制後の変化
     if ss_data:
         action_w = ss_data.get("action_type_weights", {})
         blog_w = action_w.get("blog_content", 1.0)
         if blog_w < 1.0:
-            details.append("[BLOG] blog_content weight: %.1f (suppressed) — monitoring for improvement")
+            details.append("[BLOG] blog_content weight: %.1f (suppressed)" % blog_w)
         else:
             details.append("[BLOG] blog_content weight: %.1f (normal)" % blog_w)
 
+        # 7日比較
+        blog_state = _load_json("blog_state.json")
+        if blog_state and blog_state.get("pdca_history"):
+            pdca = blog_state["pdca_history"]
+            if len(pdca) >= 2:
+                prev_issues = pdca[-2].get("issues_found", 0)
+                curr_issues = pdca[-1].get("issues_found", 0)
+                details.append("  Issues: %d → %d (%s)" % (prev_issues, curr_issues,
+                    "improving" if curr_issues < prev_issues else "stable" if curr_issues == prev_issues else "worsening"))
+
     # 3. sns-manager 偏差減少
     if prev_log and prev_log.get("audits"):
-        sns_devs_recent = []
-        for a in prev_log["audits"][-7:]:
-            sns_devs_recent.append(a.get("deviations", 0))
+        sns_devs_recent = [a.get("deviations", 0) for a in prev_log["audits"][-7:]]
         if len(sns_devs_recent) >= 3:
             first = sum(sns_devs_recent[:len(sns_devs_recent)//2]) / max(len(sns_devs_recent)//2, 1)
             second = sum(sns_devs_recent[len(sns_devs_recent)//2:]) / max(len(sns_devs_recent) - len(sns_devs_recent)//2, 1)
             if second < first * 0.7:
-                details.append("[SNS] Deviations DECREASING: %.1f → %.1f" % (first, second))
+                details.append("[SNS] Deviations: %.1f → %.1f (DECREASING)" % (first, second))
             elif second > first * 1.3:
-                details.append("[SNS] Deviations INCREASING: %.1f → %.1f — review needed" % (first, second))
+                details.append("[SNS] Deviations: %.1f → %.1f (INCREASING)" % (first, second))
             else:
-                details.append("[SNS] Deviations STABLE: %.1f → %.1f" % (first, second))
+                details.append("[SNS] Deviations: %.1f → %.1f (stable)" % (first, second))
+
+    # 4. 全体7日比較
+    if prev_log and prev_log.get("audits") and len(prev_log["audits"]) >= 7:
+        week_audits = prev_log["audits"][-7:]
+        first_3 = week_audits[:3]
+        last_3 = week_audits[-3:]
+        avg_se_before = sum(a.get("side_effects", 0) for a in first_3) / 3
+        avg_se_after = sum(a.get("side_effects", 0) for a in last_3) / 3
+        avg_dev_before = sum(a.get("deviations", 0) for a in first_3) / 3
+        avg_dev_after = sum(a.get("deviations", 0) for a in last_3) / 3
+        details.append("[7D] Side effects: %.1f → %.1f | Deviations: %.1f → %.1f" % (avg_se_before, avg_se_after, avg_dev_before, avg_dev_after))
 
     severity = "critical" if mode == "maintenance" else "suggestion" if (triggers or len(side_effects) > 2) else "info" if all_issues else "ok"
     result.append({

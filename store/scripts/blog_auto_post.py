@@ -589,29 +589,60 @@ def main():
     print("  Words: %d, Images: %d, H2: %d" % (qc["word_count"], qc["img_count"], qc["h2_count"]))
 
     if not qc["passed"]:
-        print("[REJECT] Quality check FAILED:")
+        print("[REJECT] Quality check FAILED (attempt 1):")
         for issue in qc["issues"]:
             print("  - %s" % issue)
 
-        # 拒否ログを保存
-        blog_state.setdefault("rejections", []).append({
-            "date": today_str,
-            "handle": handle,
-            "title": title[:80],
-            "category": product_type,
-            "issues": qc["issues"],
-            "word_count": qc["word_count"],
-            "img_count": qc["img_count"],
-        })
-        save_blog_state(blog_state)
+        # === 自動修復: content_thin → 再生成 ===
+        has_content_thin = any("short_content" in i for i in qc["issues"])
+        has_image_issue = any("no_images" in i for i in qc["issues"])
+        can_retry = has_content_thin or (has_image_issue and len(product.get("images", [])) >= MIN_IMAGES)
 
-        # 画像不足の場合、商品画像が少ないのが原因なら警告だけ出して続行
-        image_only_issue = all("image" in i.lower() for i in qc["issues"])
-        if image_only_issue and len(product.get("images", [])) < MIN_IMAGES:
-            print("[WARN] Product has only %d images. Proceeding with reduced image requirement." % len(product.get("images", [])))
-        else:
-            print("[SKIP] Article not posted. Fix issues and retry.")
-            return
+        if can_retry:
+            print("[RETRY] Auto-fix attempt: regenerating with stronger prompt...")
+            # 再生成用の強化プロンプト補足
+            retry_article = generate_article_with_gemini(product)
+            if retry_article:
+                retry_article = insert_images(retry_article, product)
+                retry_article = add_cta_and_links(retry_article, product)
+
+                # 内部リンクが不足していれば追加
+                if "hd-bodyscience.com" not in retry_article.lower():
+                    retry_article += '<p>Read more collector guides on <a href="https://hd-bodyscience.com/?utm_source=hd-bodyscience&utm_medium=internal" target="_blank">our blog</a>.</p>'
+
+                qc2 = quality_check(retry_article, product)
+                print("[RETRY] Quality check (attempt 2): Words:%d Images:%d" % (qc2["word_count"], qc2["img_count"]))
+
+                if qc2["passed"]:
+                    print("[OK] Retry passed!")
+                    article_html = retry_article
+                    qc = qc2
+                else:
+                    print("[REJECT] Retry also failed:")
+                    for issue in qc2["issues"]:
+                        print("  - %s" % issue)
+
+        if not qc["passed"]:
+            # 拒否ログを保存
+            blog_state.setdefault("rejections", []).append({
+                "date": today_str,
+                "handle": handle,
+                "title": title[:80],
+                "category": product_type,
+                "issues": qc["issues"],
+                "word_count": qc["word_count"],
+                "img_count": qc["img_count"],
+                "retry_attempted": can_retry,
+            })
+            save_blog_state(blog_state)
+
+            # 画像不足の場合、商品画像が少ないのが原因なら警告だけ出して続行
+            image_only_issue = all("image" in i.lower() for i in qc["issues"])
+            if image_only_issue and len(product.get("images", [])) < MIN_IMAGES:
+                print("[WARN] Product has only %d images. Proceeding with reduced image requirement." % len(product.get("images", [])))
+            else:
+                print("[SKIP] Article not posted after %s." % ("retry" if can_retry else "check"))
+                return
 
     print("[OK] Quality check passed!")
     print()
