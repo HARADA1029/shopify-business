@@ -1380,6 +1380,7 @@ from data_sufficiency_audit import generate_data_sufficiency_report
 from self_learning_audit import generate_self_learning_audit
 from bug_audit import generate_bug_audit
 from design_audit import run_design_audit
+from sales_optimization import run_sales_optimization
 from state_consistency_audit import generate_consistency_audit, filter_findings_by_ledger
 
 
@@ -1600,6 +1601,22 @@ def generate_markdown_report(all_findings, store_info):
             for d in f.get("details", [])[:3]:
                 lines.append(f"  - {d}")
         lines.append("")
+
+    # 💰 売上改善分析
+    sales_findings = [f for f in all_findings if any(kw in f.get("message", "") for kw in [
+        "Proposal outcomes", "Unsold analysis", "CRO audit", "Merchandising",
+        "Navigation audit", "DTC transfer", "Retention",
+    ])]
+    if sales_findings:
+        lines.append("## 💰 売上改善分析")
+        lines.append("")
+        for f in sales_findings:
+            icon = {"action": "🔴", "suggestion": "⚠️", "info": "ℹ️", "ok": "✅"}.get(f["type"], "📋")
+            lines.append(f"### {icon} {f['message']}")
+            lines.append("")
+            for d in f.get("details", []):
+                lines.append(f"- {d}")
+            lines.append("")
 
     # 🎨 デザイン監査
     design_findings = [f for f in all_findings if any(kw in f.get("message", "") for kw in ["design audit", "Design direction", "Design improvement", "Competitor design"])]
@@ -1974,6 +1991,9 @@ def main():
 
     print("[INFO] デザイン監査...")
     all_findings.extend(run_design_audit(products, wp_posts_data, all_findings))
+
+    print("[INFO] 売上改善分析...")
+    all_findings.extend(run_sales_optimization(products, wp_posts_data, all_findings))
 
     print("[INFO] SNS 最適化ループ...")
     all_findings.extend(run_sns_optimization())
