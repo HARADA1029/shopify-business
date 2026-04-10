@@ -709,6 +709,33 @@ def report_passed_article_performance():
         details.append("")
         details.append("Quality pass rate: %d/%d (%.0f%%)" % (len(passed), total_attempts, pass_rate))
 
+    # 自動再生成の成功率と失敗理由
+    if all_rejected:
+        retried = [r for r in all_rejected if r.get("retry_attempted")]
+        not_retried = [r for r in all_rejected if not r.get("retry_attempted")]
+        # 再生成後に通過したもの = generated の中で retry があったもの
+        retry_succeeded = sum(1 for a in all_generated if a.get("quality", {}).get("passed") and a.get("date") in [r.get("date") for r in retried])
+
+        details.append("")
+        details.append("--- Auto-Retry Stats ---")
+        details.append("Retried: %d, Retry succeeded: %d, Retry failed: %d, Not retried: %d" % (
+            len(retried), retry_succeeded, len(retried) - retry_succeeded, len(not_retried)))
+
+        if retried:
+            retry_rate = retry_succeeded / max(len(retried), 1) * 100
+            details.append("Retry success rate: %.0f%%" % retry_rate)
+
+        # 失敗理由の集計
+        reason_counts = Counter()
+        for r in all_rejected:
+            for issue in r.get("issues", []):
+                tag = issue.split("]")[0].replace("[", "") if "]" in issue else "other"
+                reason_counts[tag] += 1
+        if reason_counts:
+            details.append("Top rejection reasons:")
+            for reason, count in reason_counts.most_common(5):
+                details.append("  [%d] %s" % (count, reason))
+
     findings.append({
         "type": "info", "agent": "blog-analyst",
         "message": "Passed articles: %d total, avg %.0fw %.1fimg, %.0f%% category, %d tracking" % (

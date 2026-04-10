@@ -595,24 +595,80 @@ def run_safety_audit(all_findings):
             diff = recent_trust - prev_trust
             details.append("  vs prev: %+d (%s)" % (diff, "improving" if diff > 0 else "stable" if diff == 0 else "declining"))
 
-    # 2. blog_content 抑制後の変化
+        # trust文言パターン別の成果比較
+        if pt_data:
+            trust_patterns = {"shipped_from_japan": 0, "inspected": 0, "authentic": 0, "condition_desc": 0, "pre_owned": 0}
+            for p in pt_data.get("proposals", []):
+                if p.get("result") != "success":
+                    continue
+                msg = p.get("message", "").lower()
+                if "shipped from japan" in msg or "ship" in msg:
+                    trust_patterns["shipped_from_japan"] += 1
+                if "inspect" in msg:
+                    trust_patterns["inspected"] += 1
+                if "authentic" in msg or "genuine" in msg:
+                    trust_patterns["authentic"] += 1
+                if "condition" in msg:
+                    trust_patterns["condition_desc"] += 1
+                if "pre-owned" in msg or "pre owned" in msg or "used" in msg:
+                    trust_patterns["pre_owned"] += 1
+
+            active_patterns = [(p, c) for p, c in trust_patterns.items() if c > 0]
+            if active_patterns:
+                details.append("  Trust pattern successes:")
+                for pattern, count in sorted(active_patterns, key=lambda x: -x[1]):
+                    details.append("    [%d] %s" % (count, pattern))
+                best_pattern = max(active_patterns, key=lambda x: x[1])
+                details.append("  Best trust pattern: %s (%d successes)" % (best_pattern[0], best_pattern[1]))
+
+    # 2. blog_content 抑制後の変化 + suppress解除条件の監視
     if ss_data:
         action_w = ss_data.get("action_type_weights", {})
         blog_w = action_w.get("blog_content", 1.0)
         if blog_w < 1.0:
             details.append("[BLOG] blog_content weight: %.1f (suppressed)" % blog_w)
+
+            # suppress解除条件: 直近3件中2件以上success
+            if pt_data:
+                blog_proposals = [p for p in pt_data.get("proposals", [])
+                                  if any(kw in p.get("message", "").lower() for kw in ["blog", "article", "write"])
+                                  and p.get("status") == "adopted"]
+                recent_3 = blog_proposals[-3:] if len(blog_proposals) >= 3 else blog_proposals
+                recent_success = sum(1 for p in recent_3 if p.get("result") == "success")
+                details.append("  Suppress lift condition: 2/3 recent successes")
+                details.append("  Current: %d/%d successes (%s)" % (
+                    recent_success, len(recent_3),
+                    "READY TO LIFT" if recent_success >= 2 and len(recent_3) >= 3 else "not yet"))
+
+                # 解除可能な場合は自動解除
+                if recent_success >= 2 and len(recent_3) >= 3:
+                    action_w["blog_content"] = 1.0
+                    ss_data.setdefault("weight_adjustment_log", []).append({
+                        "date": NOW.strftime("%Y-%m-%d"),
+                        "adjustments": ["blog_content suppress LIFTED (2/3 recent successes)"],
+                    })
+                    _save_json("shared_state.json", ss_data)
+                    details.append("  ACTION: blog_content suppress LIFTED → weight restored to 1.0")
         else:
             details.append("[BLOG] blog_content weight: %.1f (normal)" % blog_w)
 
         # 7日比較
-        blog_state = _load_json("blog_state.json")
-        if blog_state and blog_state.get("pdca_history"):
-            pdca = blog_state["pdca_history"]
+        blog_state_data = _load_json("blog_state.json")
+        if blog_state_data and blog_state_data.get("pdca_history"):
+            pdca = blog_state_data["pdca_history"]
             if len(pdca) >= 2:
                 prev_issues = pdca[-2].get("issues_found", 0)
                 curr_issues = pdca[-1].get("issues_found", 0)
                 details.append("  Issues: %d → %d (%s)" % (prev_issues, curr_issues,
                     "improving" if curr_issues < prev_issues else "stable" if curr_issues == prev_issues else "worsening"))
+
+            # 品質メトリクス推移
+            if len(pdca) >= 2 and pdca[-1].get("quality_metrics") and pdca[-2].get("quality_metrics"):
+                prev_m = pdca[-2]["quality_metrics"]
+                curr_m = pdca[-1]["quality_metrics"]
+                improved = sum(1 for k in curr_m if curr_m.get(k, 0) < prev_m.get(k, 0))
+                worsened = sum(1 for k in curr_m if curr_m.get(k, 0) > prev_m.get(k, 0))
+                details.append("  Quality metrics: %d improved, %d worsened" % (improved, worsened))
 
     # 3. sns-manager 偏差減少
     if prev_log and prev_log.get("audits"):
