@@ -442,6 +442,38 @@ def _apply_category_failure_weights(cat_losses):
         _save_json("shared_state.json", ss)
 
 
+def _record_consistency_warnings(inconsistencies):
+    """整合性警告をproposal_trackingに記録し再発を追跡"""
+    pt = _load_json("proposal_tracking.json")
+    if not pt:
+        return
+
+    # 既存の警告履歴
+    warnings_log = pt.setdefault("consistency_warnings", [])
+    today = NOW.strftime("%Y-%m-%d")
+
+    for ic in inconsistencies:
+        # 同じ警告が過去にあるかチェック
+        existing = [w for w in warnings_log if w.get("warning", "")[:50] == ic[:50]]
+        if existing:
+            existing[0]["count"] = existing[0].get("count", 1) + 1
+            existing[0]["last_seen"] = today
+        else:
+            warnings_log.append({
+                "warning": ic[:150],
+                "first_seen": today,
+                "last_seen": today,
+                "count": 1,
+            })
+
+    # 30日以上見ていないものは削除
+    cutoff = (NOW - timedelta(days=30)).strftime("%Y-%m-%d")
+    pt["consistency_warnings"] = [w for w in warnings_log if w.get("last_seen", "") >= cutoff]
+
+    pt["summary"]["last_updated"] = today
+    _save_json("proposal_tracking.json", pt)
+
+
 def _check_fix_consistency(all_issues, all_fixes):
     """自動修正が次回提案と矛盾しないか整合性チェック"""
     inconsistencies = []
@@ -607,9 +639,11 @@ def run_daily_maintenance():
     if inconsistencies:
         details.append("")
         details.append("--- Fix Consistency Warnings (%d) ---" % len(inconsistencies))
-        # 代表例を表示（最大3件）
         for ic in inconsistencies[:3]:
             details.append(ic)
+
+        # warningsをproposal_trackingに記録して再発追跡
+        _record_consistency_warnings(inconsistencies)
 
     severity = "suggestion" if critical > 0 else "info"
     result_findings.append({

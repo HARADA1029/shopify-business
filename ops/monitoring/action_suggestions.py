@@ -1077,22 +1077,65 @@ def generate_all_suggestions(products, wp_posts, wp_categories):
         f["message"] = "[Score:%d]%s %s" % (score, suffix, f["message"])
 
     # PROHIBIT/SUPPRESS/HOLD レポート
-    if prohibited or suppressed or held:
-        status_details = []
-        if prohibited:
-            status_details.append("PROHIBITED (excluded): %s" % ", ".join(prohibited))
-            status_details.append("  Removed %d proposals" % (before_count - len([f for f in all_findings if f.get("type") in ("action", "suggestion")])))
-        if suppressed:
-            status_details.append("SUPPRESSED (score -50%%): %s" % ", ".join(suppressed))
-            status_details.append("  Resume condition: 2/3 recent successes")
-        if held:
-            status_details.append("HELD (score -30%%): %s" % ", ".join(held))
-            status_details.append("  Resume condition: 2/3 recent successes")
-        all_findings.append({
-            "type": "info", "agent": "self-learning",
-            "message": "Proposal filters: %d prohibited, %d suppressed, %d held" % (len(prohibited), len(suppressed), len(held)),
-            "details": status_details,
-        })
+    # 解除チェック: 前回の状態と比較
+    prev_state_path = os.path.join(SCRIPT_DIR, "proposal_filter_state.json")
+    prev_prohibited = set()
+    prev_suppressed = set()
+    prev_held = set()
+    try:
+        if os.path.exists(prev_state_path):
+            with open(prev_state_path, "r", encoding="utf-8") as f:
+                prev = json.load(f)
+            prev_prohibited = set(prev.get("prohibited", []))
+            prev_suppressed = set(prev.get("suppressed", []))
+            prev_held = set(prev.get("held", []))
+    except (json.JSONDecodeError, IOError):
+        pass
+
+    lifted_from_suppress = prev_suppressed - suppressed - prohibited
+    lifted_from_hold = prev_held - held - suppressed - prohibited
+    newly_prohibited = prohibited - prev_prohibited
+
+    # 現在の状態を保存
+    try:
+        with open(prev_state_path, "w", encoding="utf-8") as f:
+            json.dump({
+                "prohibited": list(prohibited),
+                "suppressed": list(suppressed),
+                "held": list(held),
+                "date": NOW.strftime("%Y-%m-%d"),
+            }, f, indent=2)
+    except IOError:
+        pass
+
+    status_details = []
+    removed_count = before_count - len([f for f in all_findings if f.get("type") in ("action", "suggestion")])
+
+    if prohibited:
+        status_details.append("PROHIBITED (excluded): %s" % ", ".join(prohibited))
+        status_details.append("  Removed: %d proposals this run" % removed_count)
+    if suppressed:
+        status_details.append("SUPPRESSED (score -50%%): %s" % ", ".join(suppressed))
+        status_details.append("  Resume: 2/3 recent successes")
+    if held:
+        status_details.append("HELD (score -30%%): %s" % ", ".join(held))
+        status_details.append("  Resume: 2/3 recent successes")
+    if lifted_from_suppress:
+        status_details.append("LIFTED from SUPPRESS: %s (recent successes met)" % ", ".join(lifted_from_suppress))
+    if lifted_from_hold:
+        status_details.append("LIFTED from HOLD: %s (recent successes met)" % ", ".join(lifted_from_hold))
+    if newly_prohibited:
+        status_details.append("NEWLY PROHIBITED: %s" % ", ".join(newly_prohibited))
+
+    if not status_details:
+        status_details.append("No active filters (all types eligible)")
+
+    all_findings.append({
+        "type": "info", "agent": "self-learning",
+        "message": "Proposal filters: %d prohibited, %d suppressed, %d held, %d lifted" % (
+            len(prohibited), len(suppressed), len(held), len(lifted_from_suppress) + len(lifted_from_hold)),
+        "details": status_details,
+    })
 
     # 提案をID付きで追跡
     new_count = track_proposals(all_findings)
