@@ -619,7 +619,33 @@ def run_safety_audit(all_findings):
                 for pattern, count in sorted(active_patterns, key=lambda x: -x[1]):
                     details.append("    [%d] %s" % (count, pattern))
                 best_pattern = max(active_patterns, key=lambda x: x[1])
-                details.append("  Best trust pattern: %s (%d successes)" % (best_pattern[0], best_pattern[1]))
+                details.append("  Best single: %s (%d successes)" % (best_pattern[0], best_pattern[1]))
+
+                # 組み合わせ比較
+                combo_counts = {"ship+inspect": 0, "ship+condition": 0, "ship+inspect+condition": 0, "single_only": 0}
+                for p in pt_data.get("proposals", []):
+                    if p.get("result") != "success":
+                        continue
+                    msg = p.get("message", "").lower()
+                    has_ship = "ship" in msg
+                    has_insp = "inspect" in msg
+                    has_cond = "condition" in msg
+                    if has_ship and has_insp and has_cond:
+                        combo_counts["ship+inspect+condition"] += 1
+                    elif has_ship and has_insp:
+                        combo_counts["ship+inspect"] += 1
+                    elif has_ship and has_cond:
+                        combo_counts["ship+condition"] += 1
+                    elif has_ship or has_insp or has_cond:
+                        combo_counts["single_only"] += 1
+
+                active_combos = [(c, n) for c, n in combo_counts.items() if n > 0]
+                if active_combos:
+                    details.append("  Combination successes:")
+                    for combo, count in sorted(active_combos, key=lambda x: -x[1]):
+                        details.append("    [%d] %s" % (count, combo))
+                    best_combo = max(active_combos, key=lambda x: x[1])
+                    details.append("  Best combo: %s → prioritize this combination" % best_combo[0])
 
     # 2. blog_content 抑制後の変化 + suppress解除条件の監視
     if ss_data:
