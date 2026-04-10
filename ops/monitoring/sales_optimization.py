@@ -43,8 +43,8 @@ PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
 SUCCESS_CRITERIA = {
     "page_improvement": {"success": "CTR or cart rate improved", "reaction": "views increased", "metric": "cart_adds"},
     "category_gap": {"success": "sale or 50+ views", "reaction": "views > 10", "metric": "views"},
-    "article_theme": {"success": "article published + CTA clicked", "reaction": "article published + viewed", "metric": "cta_clicks"},
-    "sns_post": {"success": "profile visit or Shopify click", "reaction": "views > 100 or saves > 5", "metric": "shopify_visits"},
+    "article_theme": {"success": "article published + CTA clicked + Shopify referral", "reaction": "article published + viewed", "metric": "cta_clicks + shopify_referrals"},
+    "sns_post": {"success": "profile visit or Shopify click", "reaction": "views > 100 or saves > 5", "metric": "save_rate + profile_visit_rate + shopify_visit_rate"},
     "sales_based": {"success": "sale occurred", "reaction": "cart added", "metric": "purchases"},
     "similar_product": {"success": "views > 20 + cart add", "reaction": "views > 10", "metric": "views"},
     "related_character": {"success": "views > 20", "reaction": "views > 5", "metric": "views"},
@@ -547,12 +547,62 @@ def analyze_retention():
 # メインエントリポイント
 # ============================================================
 
+def _sync_cro_to_tracking(cro_findings):
+    """CRO改善案をproposal_tracking / experimentsに反映"""
+    tracking_path = os.path.join(SCRIPT_DIR, "proposal_tracking.json")
+    if not os.path.exists(tracking_path):
+        return
+
+    try:
+        with open(tracking_path, "r", encoding="utf-8") as f:
+            pt = json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return
+
+    existing_msgs = set(p.get("message_hash", "") for p in pt.get("proposals", []))
+    import hashlib
+
+    for f in cro_findings:
+        if f.get("type") != "suggestion":
+            continue
+        msg = f.get("message", "")
+        msg_hash = hashlib.md5(("cro:" + msg[:50]).encode()).hexdigest()[:10]
+        if msg_hash in existing_msgs:
+            continue
+
+        pt["proposals"].append({
+            "id": "P-%s-cro" % NOW.strftime("%y%m%d"),
+            "message_hash": msg_hash,
+            "date": NOW.strftime("%Y-%m-%d"),
+            "agent": "growth-foundation",
+            "type": "page_improvement",
+            "message": "CRO: %s" % msg[:100],
+            "score": 18,
+            "status": "pending",
+            "adopted_date": None,
+            "result": None,
+            "result_date": None,
+            "next_action": None,
+        })
+
+    pt["summary"]["total"] = len(pt["proposals"])
+    pt["summary"]["pending"] = sum(1 for p in pt["proposals"] if p.get("status") == "pending")
+    pt["summary"]["last_updated"] = NOW.strftime("%Y-%m-%d")
+
+    with open(tracking_path, "w", encoding="utf-8") as f:
+        json.dump(pt, f, indent=2, ensure_ascii=False)
+
+
 def run_sales_optimization(products, wp_posts, all_findings):
     """売上改善分析フルスイート"""
     result = []
     result.extend(evaluate_proposal_outcomes())
     result.extend(analyze_unsold_reasons(products))
-    result.extend(audit_cro(products))
+
+    cro = audit_cro(products)
+    result.extend(cro)
+    _sync_cro_to_tracking(cro)
+
     result.extend(analyze_merchandising(products))
     result.extend(audit_navigation(products, wp_posts))
     result.extend(analyze_dtc_transfer(products))
