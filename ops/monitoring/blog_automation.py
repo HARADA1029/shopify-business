@@ -809,6 +809,106 @@ def report_passed_article_performance():
             else:
                 details.append("PARTIAL: short_content still occurring — review outline prompts")
 
+    # === 勝ち記事 / 弱い記事の判定 ===
+    tracking_data = state.get("post_publish_tracking", [])
+    if tracking_data:
+        winners = []
+        weak = []
+        for t in tracking_data:
+            if t.get("status") != "tracking":
+                continue
+            m = t.get("metrics", {})
+            total_engagement = m.get("pageviews", 0) + m.get("cta_clicks", 0) + m.get("shopify_referrals", 0)
+
+            # 勝ち記事: CTA clicked + Shopify referral、または pageviews 50+
+            if m.get("cta_clicks", 0) > 0 and m.get("shopify_referrals", 0) > 0:
+                winners.append(t)
+            elif m.get("pageviews", 0) >= 50:
+                winners.append(t)
+            # 弱い記事: pageviews < 10 and tracking > 7 days
+            elif m.get("pageviews", 0) < 10:
+                try:
+                    days = (NOW.date() - datetime.strptime(t.get("published_date", ""), "%Y-%m-%d").date()).days
+                    if days >= 7:
+                        weak.append(t)
+                except (ValueError, TypeError):
+                    pass
+
+        if winners or weak:
+            details.append("")
+            details.append("--- Win / Weak Article Classification ---")
+            details.append("Winners: %d | Weak: %d | Tracking: %d" % (len(winners), len(weak), len(tracking_data)))
+
+            if winners:
+                details.append("WIN articles:")
+                for w in winners[:3]:
+                    m = w.get("metrics", {})
+                    details.append("  [WIN] %s — pv:%d cta:%d ref:%d cart:%d" % (
+                        w.get("title", "?")[:30], m.get("pageviews", 0), m.get("cta_clicks", 0),
+                        m.get("shopify_referrals", 0), m.get("add_to_cart", 0)))
+
+            if weak:
+                details.append("WEAK articles:")
+                for w in weak[:3]:
+                    m = w.get("metrics", {})
+                    details.append("  [WEAK] %s — pv:%d cta:%d ref:%d" % (
+                        w.get("title", "?")[:30], m.get("pageviews", 0), m.get("cta_clicks", 0),
+                        m.get("shopify_referrals", 0)))
+
+    # === 記事タイプ別 add_to_cart 学習 ===
+    if tracking_data:
+        type_cart = defaultdict(lambda: {"articles": 0, "total_cart": 0, "total_pv": 0})
+
+        for t in tracking_data:
+            # 記事タイプを推定
+            title = t.get("title", "").lower()
+            if any(kw in title for kw in ["top 5", "top 10", "best", "ranking"]):
+                atype = "top5"
+            elif any(kw in title for kw in ["guide", "how to", "tips", "collector"]):
+                atype = "guide"
+            elif any(kw in title for kw in ["vs", "comparison", "compare"]):
+                atype = "comparison"
+            else:
+                atype = "single_review"
+
+            m = t.get("metrics", {})
+            type_cart[atype]["articles"] += 1
+            type_cart[atype]["total_cart"] += m.get("add_to_cart", 0)
+            type_cart[atype]["total_pv"] += m.get("pageviews", 0)
+
+        if type_cart:
+            details.append("")
+            details.append("--- Article Type → add_to_cart Learning ---")
+            best_type = None
+            best_rate = 0
+            for atype, d in sorted(type_cart.items()):
+                cart_rate = d["total_cart"] / max(d["total_pv"], 1) * 100
+                details.append("  [%s] %d articles, %d carts, %d pv (cart rate: %.1f%%)" % (
+                    atype, d["articles"], d["total_cart"], d["total_pv"], cart_rate))
+                if cart_rate > best_rate:
+                    best_rate = cart_rate
+                    best_type = atype
+
+            if best_type and best_rate > 0:
+                details.append("  Best for conversion: %s (%.1f%% cart rate) → increase this type" % (best_type, best_rate))
+
+                # shared_state に学習結果を保存
+                ss_path = os.path.join(SCRIPT_DIR, "shared_state.json")
+                try:
+                    with open(ss_path, "r", encoding="utf-8") as f:
+                        ss = json.load(f)
+                    ss.setdefault("blog_type_learning", []).append({
+                        "date": NOW.strftime("%Y-%m-%d"),
+                        "best_type": best_type,
+                        "best_cart_rate": round(best_rate, 1),
+                        "type_data": {k: {"articles": v["articles"], "carts": v["total_cart"]} for k, v in type_cart.items()},
+                    })
+                    ss["blog_type_learning"] = ss["blog_type_learning"][-10:]
+                    with open(ss_path, "w", encoding="utf-8") as f:
+                        json.dump(ss, f, indent=2, ensure_ascii=False)
+                except (json.JSONDecodeError, IOError):
+                    pass
+
     findings.append({
         "type": "info", "agent": "blog-analyst",
         "message": "Passed articles: %d total, avg %.0fw %.1fimg, %.0f%% category, %d tracking" % (
