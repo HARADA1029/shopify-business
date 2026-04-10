@@ -248,8 +248,34 @@ def build_image_html(product):
     return "\n".join(html_parts), image_urls
 
 
+def _build_content_outline(product):
+    """生成前に構成を補強し、各セクションの最低語数を設定する"""
+    title = product["title"]
+    product_type = product.get("product_type", "Collectible")
+    tags = product.get("tags", "")
+
+    # セクション別の最低語数（合計1200語以上を保証）
+    sections = [
+        {"heading": "Introduction", "min_words": 120, "desc": "Hook + context about this item for collectors"},
+        {"heading": "About This Item", "min_words": 200, "desc": "Detailed product description with manufacturer, series, release year"},
+        {"heading": "Franchise Context", "min_words": 200, "desc": "Deep dive into the series/franchise history and collectibility"},
+        {"heading": "Rarity and Value", "min_words": 150, "desc": "What makes items like this valuable, limited editions, condition factors"},
+        {"heading": "Collector Guide", "min_words": 180, "desc": "Practical tips: what to check, condition guide, price expectations"},
+        {"heading": "Similar Items", "min_words": 120, "desc": "Related products from same franchise or category"},
+        {"heading": "Why Buy from Japan", "min_words": 100, "desc": "Japanese collector culture, authenticity, exclusive editions"},
+        {"heading": "Summary", "min_words": 80, "desc": "Warm collector-perspective wrap-up"},
+    ]
+
+    total_min = sum(s["min_words"] for s in sections)
+    outline_text = "CONTENT OUTLINE (each section MUST meet minimum word count, total minimum %d words):\n" % total_min
+    for s in sections:
+        outline_text += "- %s: minimum %d words. %s\n" % (s["heading"], s["min_words"], s["desc"])
+
+    return outline_text, total_min
+
+
 def generate_article_with_gemini(product):
-    """Gemini で高品質な記事本文を生成する"""
+    """Gemini で高品質な記事本文を生成する（構成補強付き）"""
     title = product["title"]
     product_type = product.get("product_type", "Collectible")
     body_html = product.get("body_html", "") or ""
@@ -258,6 +284,9 @@ def generate_article_with_gemini(product):
     images = product.get("images", [])
     image_count = len(images)
     tags = product.get("tags", "")
+
+    # 構成補強
+    content_outline, total_min_words = _build_content_outline(product)
 
     # 商品画像HTMLを事前に構築
     images_html, image_urls = build_image_html(product)
@@ -271,8 +300,10 @@ def generate_article_with_gemini(product):
 You are writing a blog article for hd-bodyscience.com, a site about Japanese collectibles.
 The article must match the quality of human-written articles on this site.
 
+%s
+
 === QUALITY REQUIREMENTS (MANDATORY) ===
-- Minimum 1200 words (target: 1500 words)
+- Minimum %d words (target: 1500 words). CRITICAL: Articles under 800 words will be REJECTED.""" % (content_outline, total_min_words) + """
 - Minimum 5 H2 headings with H3 subsections
 - Tone: knowledgeable collector writing for fellow collectors
 - NOT a sales pitch. Provide genuine value, history, context, and expert insight

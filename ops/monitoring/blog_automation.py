@@ -666,16 +666,53 @@ def report_passed_article_performance():
     details.append("Tags set: %d/%d (%.0f%%)" % (with_tags, len(passed), with_tags / max(len(passed), 1) * 100))
     details.append("Featured image: %d/%d (%.0f%%)" % (with_featured, len(passed), with_featured / max(len(passed), 1) * 100))
 
-    # 直近の記事リスト
-    details.append("--- Recent passed articles ---")
+    # 直近の記事リスト + 公開後成果
+    details.append("--- Recent passed articles (post-publish tracking) ---")
     for a in passed[-5:]:
         q = a.get("quality", {})
-        details.append("  [%s] %s (%dw, %dimg)" % (a.get("date", "?"), a.get("title", "?")[:35], q.get("words", 0), q.get("images", 0)))
+        wp_id = a.get("wp_post_id", 0)
+        days_since = 0
+        try:
+            from datetime import datetime as _dt
+            days_since = (NOW.date() - _dt.strptime(a.get("date", ""), "%Y-%m-%d").date()).days
+        except (ValueError, TypeError):
+            pass
+
+        status_mark = "NEW" if days_since < 3 else "TRACK" if days_since < 14 else "MATURE"
+        details.append("  [%s] [%s] %s (%dw, %dimg) — %dd old" % (
+            status_mark, a.get("date", "?"), a.get("title", "?")[:30], q.get("words", 0), q.get("images", 0), days_since))
+
+    # 公開後の成果要求
+    track_articles = [a for a in passed if a.get("wp_post_id")]
+    trackable = 0
+    for a in track_articles:
+        try:
+            days = (NOW.date() - datetime.strptime(a.get("date", ""), "%Y-%m-%d").date()).days
+            if 3 <= days <= 30:
+                trackable += 1
+        except (ValueError, TypeError):
+            pass
+
+    if trackable > 0:
+        details.append("")
+        details.append("--- Post-Publish Performance Tracking ---")
+        details.append("Articles in tracking window (3-30 days old): %d" % trackable)
+        details.append("Metrics to track: pageviews, CTA clicks, Shopify referrals, bounce rate")
+        details.append("Data source: GA4 via daily inspection (utm_source=hd-bodyscience)")
+
+    # 品質通過率
+    all_generated = state.get("articles_generated", [])
+    all_rejected = state.get("rejections", [])
+    total_attempts = len(all_generated) + len(all_rejected)
+    if total_attempts > 0:
+        pass_rate = len(passed) / total_attempts * 100
+        details.append("")
+        details.append("Quality pass rate: %d/%d (%.0f%%)" % (len(passed), total_attempts, pass_rate))
 
     findings.append({
         "type": "info", "agent": "blog-analyst",
-        "message": "Passed articles: %d total, avg %.0fw %.1fimg, %.0f%% with category" % (
-            len(passed), avg_words, avg_imgs, with_cats / max(len(passed), 1) * 100),
+        "message": "Passed articles: %d total, avg %.0fw %.1fimg, %.0f%% category, %d tracking" % (
+            len(passed), avg_words, avg_imgs, with_cats / max(len(passed), 1) * 100, trackable),
         "details": details,
     })
     return findings

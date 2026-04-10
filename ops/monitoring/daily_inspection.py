@@ -1645,7 +1645,7 @@ def generate_markdown_report(all_findings, store_info):
                 lines.append(f"- {d}")
             lines.append("")
 
-    # 🏗️ 基盤問題サマリ
+    # 🏗️ 基盤問題サマリ（提案品質とは別レーンで優先修正）
     infra_path = os.path.join(SCRIPT_DIR, "infra_tasks.json")
     if os.path.exists(infra_path):
         try:
@@ -1653,13 +1653,18 @@ def generate_markdown_report(all_findings, store_info):
                 infra = json.load(f)
             open_tasks = [t for t in infra.get("tasks", []) if t.get("status") == "open"]
             if open_tasks:
-                lines.append("## 🏗️ 基盤問題サマリ")
+                high_tasks = [t for t in open_tasks if t.get("priority") == "high"]
+                lines.append("## 🏗️ 基盤問題サマリ（提案品質とは別レーン）")
                 lines.append("")
-                lines.append(f"オープン: {len(open_tasks)}件（提案品質とは別管理）")
+                if high_tasks:
+                    lines.append(f"**優先修正: {len(high_tasks)}件**（提案改善より先に対処）")
+                    lines.append("")
+                lines.append(f"オープン: {len(open_tasks)}件")
                 lines.append("")
-                for t in open_tasks:
-                    lines.append(f"- [{t.get('priority', '?').upper()}] [{t.get('agent', '?')}] {t.get('description', '')[:60]}")
-                    lines.append(f"  累計: {t.get('count', 0)}回 | Fix: {t.get('fix', '')[:60]}")
+                for t in sorted(open_tasks, key=lambda x: {"high": 0, "medium": 1, "low": 2}.get(x.get("priority", "low"), 3)):
+                    icon = "🔴" if t.get("priority") == "high" else "🟡" if t.get("priority") == "medium" else "⚪"
+                    lines.append(f"- {icon} [{t.get('priority', '?').upper()}] [{t.get('agent', '?')}] {t.get('description', '')[:60]}")
+                    lines.append(f"  累計: {t.get('count', 0)}回 | 初検出: {t.get('created', '?')} | Fix: {t.get('fix', '')[:50]}")
                 lines.append("")
         except (json.JSONDecodeError, IOError):
             pass
