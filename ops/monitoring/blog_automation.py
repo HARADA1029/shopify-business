@@ -927,6 +927,58 @@ def report_passed_article_performance():
         guide_articles = [t for t in tracking_data if any(kw in t.get("title", "").lower() for kw in ["guide", "how to", "tips", "collector"])]
         review_articles = [t for t in tracking_data if t not in guide_articles]
 
+        # PV→CTA率の前後比較（ミニCTA導入前後）
+        mini_cta_date = "2026-04-10"  # ミニCTA導入日
+        before_mini = [t for t in tracking_data if t.get("published_date", "") < mini_cta_date]
+        after_mini = [t for t in tracking_data if t.get("published_date", "") >= mini_cta_date]
+
+        if before_mini or after_mini:
+            details.append("")
+            details.append("--- PV→CTA Rate Before/After Mini CTA ---")
+
+            for label, articles in [("Before mini CTA", before_mini), ("After mini CTA", after_mini)]:
+                pv = sum(a.get("metrics", {}).get("pageviews", 0) for a in articles)
+                cta = sum(a.get("metrics", {}).get("cta_clicks", 0) for a in articles)
+                rate = cta / max(pv, 1) * 100
+                details.append("  [%s] %d articles, pv:%d → cta:%d (%.1f%%)" % (label, len(articles), pv, cta, rate))
+
+            if before_mini and after_mini:
+                pv_b = sum(a.get("metrics", {}).get("pageviews", 0) for a in before_mini)
+                cta_b = sum(a.get("metrics", {}).get("cta_clicks", 0) for a in before_mini)
+                pv_a = sum(a.get("metrics", {}).get("pageviews", 0) for a in after_mini)
+                cta_a = sum(a.get("metrics", {}).get("cta_clicks", 0) for a in after_mini)
+                rate_b = cta_b / max(pv_b, 1) * 100
+                rate_a = cta_a / max(pv_a, 1) * 100
+                if rate_a > rate_b:
+                    details.append("  IMPROVED: CTA rate %.1f%% → %.1f%% (+%.1fpp)" % (rate_b, rate_a, rate_a - rate_b))
+                elif rate_b > 0:
+                    details.append("  Change: %.1f%% → %.1f%% (%.1fpp)" % (rate_b, rate_a, rate_a - rate_b))
+
+        # trust文言あり/なしのCTA反応差
+        trust_articles = []
+        no_trust_articles = []
+        for t in tracking_data:
+            gen = [a for a in state.get("articles_generated", []) if a.get("wp_post_id") == t.get("wp_post_id")]
+            if gen:
+                title = gen[0].get("title", "").lower()
+                if any(kw in title for kw in ["ship", "inspect", "condition", "japan", "pre-owned"]):
+                    trust_articles.append(t)
+                else:
+                    no_trust_articles.append(t)
+
+        if trust_articles or no_trust_articles:
+            details.append("")
+            details.append("--- Trust Language vs No-Trust CTA Comparison ---")
+            for label, articles in [("With trust context", trust_articles), ("Without trust context", no_trust_articles)]:
+                if not articles:
+                    details.append("  [%s] No articles" % label)
+                    continue
+                pv = sum(a.get("metrics", {}).get("pageviews", 0) for a in articles)
+                cta = sum(a.get("metrics", {}).get("cta_clicks", 0) for a in articles)
+                ref = sum(a.get("metrics", {}).get("shopify_referrals", 0) for a in articles)
+                rate = cta / max(pv, 1) * 100
+                details.append("  [%s] %d articles, pv:%d → cta:%d (%.1f%%) → ref:%d" % (label, len(articles), pv, cta, rate, ref))
+
         if guide_articles or review_articles:
             details.append("")
             details.append("--- guide vs single_review Deep Comparison ---")

@@ -689,10 +689,34 @@ def run_safety_audit(all_findings):
                 post_lift_success = sum(1 for p in post_lift_recent if p.get("result") == "success")
                 post_lift_fail = sum(1 for p in post_lift_recent if p.get("result") in ("no_reaction", "failed", "weak"))
 
-                details.append("  POST-LIFT MONITORING: %d/%d recent successes" % (post_lift_success, len(post_lift_recent)))
+                # 解除日を特定
+                lift_date = None
+                for l in reversed(log[-10:]):
+                    if "blog_content suppress LIFTED" in str(l.get("adjustments", [])):
+                        lift_date = l.get("date", "")
+                        break
+
+                days_since_lift = 0
+                if lift_date:
+                    try:
+                        days_since_lift = (NOW.replace(tzinfo=None) - __import__("datetime").datetime.strptime(lift_date, "%Y-%m-%d")).days
+                    except (ValueError, TypeError):
+                        pass
+
+                details.append("  POST-LIFT MONITORING (day %d since lift):" % days_since_lift)
+                details.append("    Recent 3 blog proposals: %d success, %d fail" % (post_lift_success, post_lift_fail))
+
+                # 全post-lift期間のサマリ
+                all_post_lift = [p for p in post_lift_blogs if p.get("adopted_date", "") >= (lift_date or "")]
+                all_pl_success = sum(1 for p in all_post_lift if p.get("result") == "success")
+                all_pl_fail = sum(1 for p in all_post_lift if p.get("result") in ("no_reaction", "failed", "weak"))
+                all_pl_total = len(all_post_lift)
+                if all_pl_total > 0:
+                    details.append("    Total since lift: %d/%d success (%.0f%%)" % (
+                        all_pl_success, all_pl_total, all_pl_success / all_pl_total * 100))
+
                 if post_lift_fail >= 2:
-                    details.append("  WARNING: Quality declining after suppress lift → consider re-suppressing")
-                    # 自動再抑制
+                    details.append("  WARNING: Quality declining after suppress lift")
                     action_w = ss_data.get("action_type_weights", {})
                     action_w["blog_content"] = 0.8
                     ss_data.setdefault("weight_adjustment_log", []).append({
@@ -702,7 +726,9 @@ def run_safety_audit(all_findings):
                     _save_json("shared_state.json", ss_data)
                     details.append("  ACTION: blog_content re-suppressed → weight 0.8")
                 elif post_lift_success >= 2:
-                    details.append("  OK: Quality maintained after suppress lift")
+                    details.append("  OK: Quality maintained after suppress lift (%d days)" % days_since_lift)
+                else:
+                    details.append("  MONITORING: Collecting data (%d/%d evaluated)" % (post_lift_success + post_lift_fail, len(post_lift_recent)))
 
         # 7日比較
         blog_state_data = _load_json("blog_state.json")
