@@ -393,9 +393,79 @@ def run_safety_audit(all_findings):
 
     if high_deviation_proposals:
         details.append("")
-        details.append("--- Deviation Alerts ---")
+        details.append("--- Deviation Alerts (threshold: %d) ---" % DEVIATION_THRESHOLD)
         for agent, msg, dev in high_deviation_proposals[:5]:
+            # スコア内訳を表示
+            breakdown = []
+            text = msg.lower()
+            if not any(kw in text for kw in ["figure", "toy", "card", "game", "manga", "anime", "pokemon", "collectible", "japanese", "japan", "pre-owned"]):
+                breakdown.append("genre-miss(+2)")
+            if any(kw in text for kw in ["brand new", "factory sealed", "pre-order"]):
+                breakdown.append("new-product(+2)")
+            if any(kw in text for kw in ["buy now", "limited time", "hurry", "act now"]):
+                breakdown.append("sales-push(+2)")
+            if any(kw in text for kw in ["copy", "replicate", "clone"]):
+                breakdown.append("competitor-copy(+2)")
             details.append("[score:%d] [%s] %s" % (dev, agent, msg))
+            if breakdown:
+                details.append("  Breakdown: %s" % " + ".join(breakdown))
+            else:
+                details.append("  Breakdown: genre-miss or trust-gap (minor)")
+
+    # === F. 保守モード発動条件の妥当性 ===
+    details.append("")
+    details.append("--- Maintenance Mode Conditions ---")
+    details.append("Quality drop: %d/%d consecutive (trigger: %d)" % (
+        safety.get("consecutive_quality_drops", 0),
+        RUNAWAY_THRESHOLDS["consecutive_quality_drop"],
+        RUNAWAY_THRESHOLDS["consecutive_quality_drop"]))
+    details.append("No-image articles: %d/%d consecutive (trigger: %d)" % (
+        safety.get("consecutive_no_image", 0),
+        RUNAWAY_THRESHOLDS["consecutive_no_image_articles"],
+        RUNAWAY_THRESHOLDS["consecutive_no_image_articles"]))
+    details.append("High deviation: %d/%d consecutive (trigger: %d)" % (
+        safety.get("consecutive_high_deviation", 0),
+        RUNAWAY_THRESHOLDS["deviation_high_consecutive"],
+        RUNAWAY_THRESHOLDS["deviation_high_consecutive"]))
+    if mode == "normal":
+        headroom = min(
+            RUNAWAY_THRESHOLDS["consecutive_quality_drop"] - safety.get("consecutive_quality_drops", 0),
+            RUNAWAY_THRESHOLDS["consecutive_no_image_articles"] - safety.get("consecutive_no_image", 0),
+            RUNAWAY_THRESHOLDS["deviation_high_consecutive"] - safety.get("consecutive_high_deviation", 0),
+        )
+        details.append("Headroom to maintenance mode: %d days" % max(headroom, 0))
+
+    # === G. 再発傾向（safety_audit_log） ===
+    prev_log = _load_json("safety_audit_log.json")
+    if prev_log and prev_log.get("audits"):
+        audits = prev_log["audits"]
+        recent_7 = [a for a in audits if a.get("date", "") >= (NOW - timedelta(days=7)).strftime("%Y-%m-%d")]
+
+        if recent_7:
+            details.append("")
+            details.append("--- 7-Day Trend ---")
+            total_triggers = sum(a.get("triggers", 0) for a in recent_7)
+            total_effects = sum(a.get("side_effects", 0) for a in recent_7)
+            total_devs = sum(a.get("deviations", 0) for a in recent_7)
+            maint_days = sum(1 for a in recent_7 if a.get("mode") == "maintenance")
+
+            details.append("Triggers (7d): %d" % total_triggers)
+            details.append("Side effects (7d): %d" % total_effects)
+            details.append("Deviations (7d): %d" % total_devs)
+            details.append("Maintenance mode days (7d): %d" % maint_days)
+
+            # 傾向判定
+            if len(recent_7) >= 3:
+                first_half = recent_7[:len(recent_7)//2]
+                second_half = recent_7[len(recent_7)//2:]
+                t1 = sum(a.get("triggers", 0) + a.get("side_effects", 0) for a in first_half) / max(len(first_half), 1)
+                t2 = sum(a.get("triggers", 0) + a.get("side_effects", 0) for a in second_half) / max(len(second_half), 1)
+                if t2 > t1 * 1.5 and t2 > 1:
+                    details.append("TREND: Issues INCREASING (%.1f → %.1f avg/day)" % (t1, t2))
+                elif t2 < t1 * 0.5:
+                    details.append("TREND: Issues DECREASING (%.1f → %.1f avg/day)" % (t1, t2))
+                else:
+                    details.append("TREND: Stable (%.1f → %.1f avg/day)" % (t1, t2))
 
     if significant:
         details.append("")
