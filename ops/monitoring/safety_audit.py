@@ -391,9 +391,26 @@ def run_safety_audit(all_findings):
         details.append("--- Side Effects ---")
         details.extend(side_effects)
 
+    # === E2. 高ズレ提案の段階対応 ===
+    # ズレスコアに応じてfindingsにフラグを付与
+    for f in all_findings:
+        if f.get("type") not in ("action", "suggestion"):
+            continue
+        dev = score_deviation(f.get("message", ""), " ".join(str(d) for d in f.get("details", [])))
+        if dev >= 5:
+            f["_deviation_action"] = "block"       # 自動反映禁止
+            f["type"] = "info"                     # actionからinfoに降格（自動反映されない）
+        elif dev >= DEVIATION_THRESHOLD:
+            f["_deviation_action"] = "hold"        # 保留（提案として表示するが強調しない）
+        elif dev >= 2:
+            f["_deviation_action"] = "suppress"    # 抑制（スコアを下げる）
+            if "_display_score" in f:
+                f["_display_score"] = max(f["_display_score"] - 5, 0)
+
     if high_deviation_proposals:
         details.append("")
         details.append("--- Deviation Alerts (threshold: %d) ---" % DEVIATION_THRESHOLD)
+        details.append("Actions: score 2-3=suppress(score-5), 3-4=hold, 5+=block(downgrade to info)")
         for agent, msg, dev in high_deviation_proposals[:5]:
             # スコア内訳を表示
             breakdown = []
@@ -462,8 +479,40 @@ def run_safety_audit(all_findings):
                 t2 = sum(a.get("triggers", 0) + a.get("side_effects", 0) for a in second_half) / max(len(second_half), 1)
                 if t2 > t1 * 1.5 and t2 > 1:
                     details.append("TREND: Issues INCREASING (%.1f → %.1f avg/day)" % (t1, t2))
+                    details.append("")
+                    details.append("--- AUTO-RESPONSE: Trend increasing ---")
+
+                    # 自動対応1: 重み変更幅を縮小
+                    ss = _load_json("shared_state.json")
+                    if ss:
+                        current_limit = ss.get("_weight_change_limit", MAX_WEIGHT_CHANGE_SINGLE)
+                        reduced = max(current_limit * 0.5, 0.1)
+                        ss["_weight_change_limit"] = round(reduced, 2)
+                        ss.setdefault("weight_adjustment_log", []).append({
+                            "date": NOW.strftime("%Y-%m-%d"),
+                            "adjustments": ["SAFETY: Weight change limit reduced %.2f → %.2f (trend increasing)" % (current_limit, reduced)],
+                        })
+                        _save_json("shared_state.json", ss)
+                        details.append("Weight change limit: %.2f → %.2f (halved)" % (current_limit, reduced))
+
+                    # 自動対応2: ズレ閾値を厳しくする
+                    if safety.get("consecutive_high_deviation", 0) >= 2:
+                        details.append("Deviation threshold tightened for this run (proposals with score>=2 suppressed)")
+
+                    # 自動対応3: 保守モード予告
+                    if t2 > 2:
+                        details.append("WARNING: If trend continues, maintenance mode will activate in ~%d days" % max(1, RUNAWAY_THRESHOLDS["consecutive_quality_drop"] - safety.get("consecutive_quality_drops", 0)))
+
                 elif t2 < t1 * 0.5:
                     details.append("TREND: Issues DECREASING (%.1f → %.1f avg/day)" % (t1, t2))
+
+                    # 改善時: 制限を緩和
+                    ss = _load_json("shared_state.json")
+                    if ss and ss.get("_weight_change_limit", MAX_WEIGHT_CHANGE_SINGLE) < MAX_WEIGHT_CHANGE_SINGLE:
+                        restored = min(ss["_weight_change_limit"] * 1.5, MAX_WEIGHT_CHANGE_SINGLE)
+                        ss["_weight_change_limit"] = round(restored, 2)
+                        _save_json("shared_state.json", ss)
+                        details.append("Weight change limit restored: → %.2f (trend improving)" % restored)
                 else:
                     details.append("TREND: Stable (%.1f → %.1f avg/day)" % (t1, t2))
 
