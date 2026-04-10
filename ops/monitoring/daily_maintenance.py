@@ -442,6 +442,107 @@ def _apply_category_failure_weights(cat_losses):
         _save_json("shared_state.json", ss)
 
 
+def _analyze_warning_trends():
+    """warning件数の7日推移、高再発warningの自動昇格、優先修正対象の特定"""
+    trend_details = []
+    recurrence_details = []
+    auto_promoted = []
+
+    pt = _load_json("proposal_tracking.json")
+    if not pt:
+        return trend_details, recurrence_details, auto_promoted
+
+    warnings = pt.get("consistency_warnings", [])
+    if not warnings:
+        return trend_details, recurrence_details, auto_promoted
+
+    # === 7日推移 ===
+    today = NOW.strftime("%Y-%m-%d")
+    seven_days_ago = (NOW - timedelta(days=7)).strftime("%Y-%m-%d")
+
+    # 日別warning件数を集計
+    daily_counts = Counter()
+    for w in warnings:
+        last = w.get("last_seen", "")
+        if last >= seven_days_ago:
+            daily_counts[last] += 1
+
+    trend_details.append("--- Warning 7-Day Trend ---")
+    for i in range(7):
+        d = (NOW - timedelta(days=6-i)).strftime("%Y-%m-%d")
+        count = daily_counts.get(d, 0)
+        bar = "*" * min(count, 10)
+        trend_details.append("[%s] %d %s" % (d, count, bar))
+
+    total_7d = sum(daily_counts.values())
+    trend_details.append("Total (7d): %d warnings" % total_7d)
+
+    # === 高再発warningの検出 ===
+    high_recurrence = [w for w in warnings if w.get("count", 0) >= 3]
+
+    if high_recurrence:
+        recurrence_details.append("--- High Recurrence Warnings (3+ times) ---")
+        for w in sorted(high_recurrence, key=lambda x: -x.get("count", 0)):
+            recurrence_details.append(
+                "[%dx] %s (first:%s last:%s)" % (
+                    w["count"], w["warning"][:60], w.get("first_seen", "?"), w.get("last_seen", "?")))
+
+        # === 自動昇格: 再発5回以上のwarningをproposal_trackingに改善提案として登録 ===
+        import hashlib
+        existing_hashes = set(p.get("message_hash", "") for p in pt.get("proposals", []))
+
+        for w in high_recurrence:
+            if w.get("count", 0) >= 5:
+                msg_hash = hashlib.md5(("warn-promote:" + w["warning"][:50]).encode()).hexdigest()[:10]
+                if msg_hash in existing_hashes:
+                    continue
+
+                pt["proposals"].append({
+                    "id": "P-%s-wrn" % NOW.strftime("%y%m%d"),
+                    "message_hash": msg_hash,
+                    "date": today,
+                    "agent": "project-orchestrator",
+                    "type": "page_improvement",
+                    "message": "Auto-promoted warning (%dx): %s" % (w["count"], w["warning"][:80]),
+                    "score": 22,
+                    "status": "pending",
+                    "adopted_date": None, "result": None, "result_date": None,
+                    "next_action": "Fix root cause to prevent recurrence",
+                })
+                auto_promoted.append("Promoted warning (%dx): %s" % (w["count"], w["warning"][:50]))
+
+        if auto_promoted:
+            pt["summary"]["total"] = len(pt["proposals"])
+            pt["summary"]["pending"] = sum(1 for p in pt["proposals"] if p.get("status") == "pending")
+            pt["summary"]["last_updated"] = today
+            _save_json("proposal_tracking.json", pt)
+
+    # === warning が多い提案タイプを特定 ===
+    type_keywords = {
+        "sns_post": ["sns", "instagram", "facebook", "post"],
+        "article_theme": ["article", "blog", "write"],
+        "category_gap": ["category", "gap", "strengthen"],
+        "page_improvement": ["page", "trust", "description", "image"],
+    }
+
+    warning_by_type = Counter()
+    for w in warnings:
+        msg = w.get("warning", "").lower()
+        for ptype, kws in type_keywords.items():
+            if any(kw in msg for kw in kws):
+                warning_by_type[ptype] += w.get("count", 1)
+                break
+
+    if warning_by_type:
+        recurrence_details.append("")
+        recurrence_details.append("--- Warnings by Proposal Type ---")
+        for ptype, count in warning_by_type.most_common():
+            marker = "PRIORITY-FIX" if count >= 5 else "MONITOR"
+            recurrence_details.append("[%s] %s: %d warnings" % (marker, ptype, count))
+
+    return trend_details, recurrence_details, auto_promoted
+
+
 def _record_consistency_warnings(inconsistencies):
     """整合性警告をproposal_trackingに記録し再発を追跡"""
     pt = _load_json("proposal_tracking.json")
@@ -644,6 +745,17 @@ def run_daily_maintenance():
 
         # warningsをproposal_trackingに記録して再発追跡
         _record_consistency_warnings(inconsistencies)
+
+    # === warnings 7日推移 + 高再発の自動昇格 ===
+    warning_trend, high_recurrence, auto_promoted = _analyze_warning_trends()
+    if warning_trend:
+        details.append("")
+        details.extend(warning_trend)
+    if high_recurrence:
+        details.append("")
+        details.extend(high_recurrence)
+    if auto_promoted:
+        all_fixes.extend(auto_promoted)
 
     severity = "suggestion" if critical > 0 else "info"
     result_findings.append({
