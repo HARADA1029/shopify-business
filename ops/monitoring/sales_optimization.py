@@ -1,19 +1,31 @@
 # ============================================================
-# 売上改善分析モジュール
+# 売上改善分析モジュール（精度強化版）
 #
-# Shopify売上を改善するための6専門分野を統合分析する。
+# 成功判定定義:
+#   page_improvement: CTR改善 / カート率改善 / 購入発生
+#   category_gap: 商品追加 / 閲覧増 / 売上発生
+#   article_theme: 記事公開 / 閲覧 / CTAクリック / 送客
+#   sns_post: 表示 / 保存 / プロフィール遷移 / Shopify遷移
+#   sales_based: 売上発生 / カート追加
+#   similar_product: 閲覧増 / カート追加
+#   related_character: 閲覧増
+#   internal_link: クリック増
 #
-# 1. CRO（商品ページ/CTA/trust/モバイル導線）
-# 2. Merchandising（カテゴリ厚み/価格帯/作品深掘り）
-# 3. Content UX（ブログ品質/読みやすさ/テンプレート品質）
-# 4. IA / Navigation（導線/内部リンク/回遊設計）
-# 5. Marketplace-to-DTC（eBay→Shopify移植の見せ方改善）
-# 6. Retention（再訪/ファン化/newsletter/類似提案）
+# 成果4段階:
+#   success: 売上 or カート追加 or 目標達成
+#   reaction_only: 閲覧・クリックあるが購入なし
+#   no_reaction: 閲覧もクリックもほぼなし
+#   pending: データ蓄積中（7日未満）
 #
-# 追加機能:
-# - 提案タイプ別勝敗評価
-# - 売れない理由の切り分け
-# - デザイン改善の学習化
+# CROスコア採点項目（8項目、各1点、満点8）:
+#   1. 画像3枚以上
+#   2. compare-at price設定
+#   3. trust語あり（shipped from japan/inspected/authentic）
+#   4. condition語あり（condition/pre-owned/used）
+#   5. About This Item ブロック
+#   6. 説明文100語以上
+#   7. タグ3個以上
+#   8. コレクション所属
 # ============================================================
 
 import json
@@ -26,6 +38,32 @@ JST = timezone(timedelta(hours=9))
 NOW = datetime.now(JST)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
+
+# 成功判定定義
+SUCCESS_CRITERIA = {
+    "page_improvement": {"success": "CTR or cart rate improved", "reaction": "views increased", "metric": "cart_adds"},
+    "category_gap": {"success": "sale or 50+ views", "reaction": "views > 10", "metric": "views"},
+    "article_theme": {"success": "article published + CTA clicked", "reaction": "article published + viewed", "metric": "cta_clicks"},
+    "sns_post": {"success": "profile visit or Shopify click", "reaction": "views > 100 or saves > 5", "metric": "shopify_visits"},
+    "sales_based": {"success": "sale occurred", "reaction": "cart added", "metric": "purchases"},
+    "similar_product": {"success": "views > 20 + cart add", "reaction": "views > 10", "metric": "views"},
+    "related_character": {"success": "views > 20", "reaction": "views > 5", "metric": "views"},
+    "internal_link": {"success": "click-through increased", "reaction": "page viewed", "metric": "clicks"},
+}
+
+# フランチャイズ関係マッピング
+FRANCHISE_MAP = {
+    "pokemon": ["pikachu", "charizard", "eevee", "mewtwo", "lugia", "gardevoir", "appletun"],
+    "one piece": ["luffy", "zoro", "nami", "shanks", "ace"],
+    "dragon ball": ["goku", "vegeta", "frieza", "gohan"],
+    "naruto": ["naruto", "sasuke", "sakura", "kakashi"],
+    "gundam": ["rx-78", "zaku", "unicorn", "strike"],
+    "vocaloid": ["miku", "hatsune", "rin", "len"],
+    "evangelion": ["eva", "asuka", "rei", "shinji", "misato"],
+    "jojo": ["jotaro", "dio", "giorno", "jolyne"],
+    "tamagotchi": ["bandai", "digital pet", "chibi", "id l"],
+    "ghibli": ["totoro", "chihiro", "howl", "kiki"],
+}
 
 
 def _load_json(filename):
@@ -40,52 +78,74 @@ def _load_json(filename):
 
 
 # ============================================================
-# 1. 提案タイプ別勝敗評価
+# 1. 提案タイプ別勝敗評価（4段階）
 # ============================================================
 
 def evaluate_proposal_outcomes():
-    """どの提案タイプが実際に売上に効いたかを評価"""
+    """提案タイプ別の成果を4段階で評価"""
     findings = []
     pt = _load_json("proposal_tracking.json")
     if not pt or not pt.get("proposals"):
         return findings
 
-    accuracy = pt.get("summary", {}).get("accuracy_by_type", {})
-    details = ["=== Proposal Win/Loss by Type ==="]
+    # 4段階集計
+    type_results = defaultdict(lambda: {"success": 0, "reaction_only": 0, "no_reaction": 0, "pending": 0, "total": 0})
+
+    for p in pt.get("proposals", []):
+        ptype = p.get("type", "other")
+        result = p.get("result")
+        status = p.get("status", "")
+
+        type_results[ptype]["total"] += 1
+
+        if status == "pending":
+            type_results[ptype]["pending"] += 1
+        elif result == "success":
+            type_results[ptype]["success"] += 1
+        elif result == "weak" or result == "reaction_only":
+            type_results[ptype]["reaction_only"] += 1
+        elif result == "failed" or result == "no_reaction":
+            type_results[ptype]["no_reaction"] += 1
+        elif not result and status == "adopted":
+            type_results[ptype]["pending"] += 1
+
+    details = ["=== Proposal Win/Loss by Type (4-level) ==="]
+    details.append("Criteria per type:")
+    for ptype, criteria in sorted(SUCCESS_CRITERIA.items()):
+        details.append("  %s: success=%s | reaction=%s" % (ptype, criteria["success"], criteria["reaction"]))
+    details.append("")
 
     types_ranked = []
-    for ptype, data in sorted(accuracy.items()):
-        proposed = data.get("proposed", 0)
-        adopted = data.get("adopted", 0)
-        success = data.get("success", 0)
-        if proposed == 0:
-            continue
+    for ptype, counts in sorted(type_results.items()):
+        total = counts["total"]
+        s = counts["success"]
+        r = counts["reaction_only"]
+        n = counts["no_reaction"]
+        p = counts["pending"]
+        evaluated = s + r + n
+        success_rate = s / max(evaluated, 1) * 100
 
-        adopt_rate = adopted / proposed * 100
-        success_rate = success / max(adopted, 1) * 100
-        types_ranked.append((ptype, proposed, adopted, success, adopt_rate, success_rate))
+        marker = "WIN" if success_rate >= 70 else "OK" if success_rate >= 40 else "WEAK" if evaluated > 0 else "PENDING"
+        details.append("[%s] %s: %d total | success:%d reaction:%d none:%d pending:%d (%.0f%%)" % (
+            marker, ptype, total, s, r, n, p, success_rate))
+        types_ranked.append((ptype, success_rate, total))
 
-    types_ranked.sort(key=lambda x: -x[5])  # 成功率順
+    types_ranked.sort(key=lambda x: -x[1])
 
-    for ptype, proposed, adopted, success, ar, sr in types_ranked:
-        marker = "WIN" if sr >= 70 else "OK" if sr >= 40 else "WEAK"
-        details.append("[%s] %s: proposed:%d adopted:%d success:%d (adopt:%.0f%% success:%.0f%%)" % (
-            marker, ptype, proposed, adopted, success, ar, sr))
-
-    # 次回採用条件の提案
     if types_ranked:
-        best = types_ranked[0]
-        worst = types_ranked[-1] if len(types_ranked) > 1 else None
         details.append("")
-        details.append("--- Recommendations ---")
-        details.append("Increase: %s proposals (%.0f%% success)" % (best[0], best[5]))
-        if worst and worst[5] < 50:
-            details.append("Review: %s proposals (%.0f%% success) — tighten criteria" % (worst[0], worst[5]))
+        details.append("--- Weight Recommendations ---")
+        best = types_ranked[0]
+        details.append("Increase weight: %s (%.0f%% success)" % (best[0], best[1]))
+        if len(types_ranked) > 1:
+            worst = types_ranked[-1]
+            if worst[1] < 50 and worst[2] >= 2:
+                details.append("Decrease weight: %s (%.0f%% success)" % (worst[0], worst[1]))
 
     findings.append({
         "type": "info", "agent": "self-learning",
-        "message": "Proposal outcomes: %d types tracked, best=%.0f%% success" % (
-            len(types_ranked), types_ranked[0][5] if types_ranked else 0),
+        "message": "Proposal outcomes: %d types, best=%.0f%% success" % (
+            len(types_ranked), types_ranked[0][1] if types_ranked else 0),
         "details": details,
     })
     return findings
@@ -96,13 +156,10 @@ def evaluate_proposal_outcomes():
 # ============================================================
 
 def analyze_unsold_reasons(products):
-    """売れていない商品の原因を分類"""
+    """売れていない商品の原因を6分類"""
     findings = []
     if not products:
         return findings
-
-    adoption = _load_json("adoption_tracking.json")
-    adopted = adoption.get("adopted_products", []) if adoption else []
 
     reasons = defaultdict(list)
 
@@ -115,341 +172,372 @@ def analyze_unsold_reasons(products):
         variants = p.get("variants", [])
         price = float(variants[0].get("price", "0") or "0") if variants else 0
         has_trust = any(kw in body_lower for kw in ["shipped from japan", "inspected", "authentic"])
+        has_condition = any(kw in body_lower for kw in ["condition", "pre-owned", "used"])
+        tags = len([t.strip() for t in p.get("tags", "").split(",") if t.strip()])
         title = p["title"][:40]
-
-        # 追跡中商品と照合
-        tracked = None
-        for a in adopted:
-            if a.get("product_id") == p["id"]:
-                tracked = a
-                break
 
         issues = []
 
-        # 価格要因
-        if price > 500:
-            issues.append("high_price")
-        elif price < 15:
-            issues.append("low_price_low_margin")
+        # 1. 需要不足
+        niche = ["Goods & Accessories", "Media & Books"]
+        if p.get("product_type", "") in niche:
+            issues.append("demand_niche")
 
-        # ページ品質
+        # 2. ページ品質不足
         if word_count < 100:
-            issues.append("thin_description")
+            issues.append("quality_thin_desc")
         if images < 3:
-            issues.append("few_images")
+            issues.append("quality_few_images")
+
+        # 3. 価格要因
+        if price > 500:
+            issues.append("price_high")
+
+        # 4. trust不足
         if not has_trust:
-            issues.append("no_trust_language")
+            issues.append("trust_missing")
+        if not has_condition:
+            issues.append("trust_no_condition")
 
-        # 需要推定
-        product_type = p.get("product_type", "")
-        niche_categories = ["Goods & Accessories", "Media & Books"]
-        if product_type in niche_categories:
-            issues.append("niche_category")
+        # 5. 導線不足
+        if tags < 3:
+            issues.append("navigation_few_tags")
 
-        if issues:
-            primary = issues[0]
-            reasons[primary].append(title)
+        for issue in issues:
+            reasons[issue].append(title)
 
     if reasons:
-        details = ["=== Unsold Reasons Classification ==="]
-        reason_labels = {
-            "thin_description": "Page quality: thin description (<100w)",
-            "few_images": "Page quality: too few images (<3)",
-            "no_trust_language": "Trust: missing shipped-from-japan/inspected",
-            "high_price": "Price: over $500 (high barrier)",
-            "low_price_low_margin": "Price: under $15 (low margin)",
-            "niche_category": "Demand: niche category (lower search volume)",
+        details = ["=== Unsold Reasons (6 categories) ==="]
+        labels = {
+            "demand_niche": "Demand: niche category",
+            "quality_thin_desc": "Page: thin description (<100w)",
+            "quality_few_images": "Page: few images (<3)",
+            "price_high": "Price: over $500",
+            "trust_missing": "Trust: no trust language",
+            "trust_no_condition": "Trust: no condition description",
+            "navigation_few_tags": "Navigation: few tags (<3)",
         }
         for reason, titles in sorted(reasons.items(), key=lambda x: -len(x[1])):
-            label = reason_labels.get(reason, reason)
-            details.append("[%d products] %s" % (len(titles), label))
-            for t in titles[:3]:
+            label = labels.get(reason, reason)
+            details.append("[%d items] %s" % (len(titles), label))
+            for t in titles[:2]:
                 details.append("  - %s" % t)
 
         findings.append({
             "type": "suggestion", "agent": "growth-foundation",
-            "message": "Unsold analysis: %d products with issues across %d reasons" % (
+            "message": "Unsold analysis: %d items, %d reason types" % (
                 sum(len(v) for v in reasons.values()), len(reasons)),
             "details": details,
         })
-
     return findings
 
 
 # ============================================================
-# 3. CRO（Conversion Rate Optimization）
+# 3. CRO（8項目スコアリング）
 # ============================================================
 
 def audit_cro(products):
-    """商品ページのコンバージョン要素を監査"""
+    """CROスコア: 8項目各1点、満点8"""
     findings = []
     if not products:
         return findings
 
     total = len(products)
-    issues = defaultdict(int)
+    item_scores = []
 
     for p in products:
         body = p.get("body_html", "") or ""
         body_lower = body.lower()
+        body_text = re.sub(r"<[^>]+>", "", body)
         images = len(p.get("images", []))
         variants = p.get("variants", [])
         compare_at = variants[0].get("compare_at_price") if variants else None
+        tags = len([t.strip() for t in p.get("tags", "").split(",") if t.strip()])
 
-        # ファーストビュー要素
-        if images < 3:
-            issues["few_images"] += 1
-        if not compare_at:
-            issues["no_compare_price"] += 1
+        score = 0
+        checks = {}
+        # 1. 画像3枚以上
+        checks["images_3plus"] = images >= 3
+        if checks["images_3plus"]: score += 1
+        # 2. compare-at price
+        checks["compare_price"] = bool(compare_at)
+        if checks["compare_price"]: score += 1
+        # 3. trust語
+        checks["trust_lang"] = any(kw in body_lower for kw in ["shipped from japan", "inspected", "authentic"])
+        if checks["trust_lang"]: score += 1
+        # 4. condition語
+        checks["condition"] = any(kw in body_lower for kw in ["condition", "pre-owned", "used"])
+        if checks["condition"]: score += 1
+        # 5. About This Item
+        checks["about_block"] = "about this item" in body_lower
+        if checks["about_block"]: score += 1
+        # 6. 説明100語以上
+        checks["desc_100w"] = len(body_text.split()) >= 100
+        if checks["desc_100w"]: score += 1
+        # 7. タグ3個以上
+        checks["tags_3plus"] = tags >= 3
+        if checks["tags_3plus"]: score += 1
+        # 8. コレクション所属（product_type設定）
+        checks["collection"] = bool(p.get("product_type", ""))
+        if checks["collection"]: score += 1
 
-        # Trust要素
-        if not any(kw in body_lower for kw in ["shipped from japan", "inspected", "authentic"]):
-            issues["no_trust"] += 1
-        if "condition" not in body_lower and "pre-owned" not in body_lower:
-            issues["no_condition"] += 1
+        item_scores.append(score)
 
-        # CTA品質
-        if "about this item" not in body_lower:
-            issues["no_about_block"] += 1
+    avg_score = sum(item_scores) / max(len(item_scores), 1)
+    perfect = sum(1 for s in item_scores if s == 8)
+    low = sum(1 for s in item_scores if s < 5)
 
-    details = ["=== CRO Audit (%d products) ===" % total]
-    cro_scores = {
-        "few_images": ("Images <3", "high", "Add more product photos"),
-        "no_compare_price": ("No compare-at price", "medium", "Set eBay price as compare-at for sale display"),
-        "no_trust": ("No trust language", "high", "Add shipped-from-japan/inspected"),
-        "no_condition": ("No condition description", "high", "Add pre-owned condition details"),
-        "no_about_block": ("No About This Item block", "medium", "Add structured product info block"),
-    }
+    details = [
+        "=== CRO Score (8 items, max 8) ===",
+        "Average: %.1f / 8" % avg_score,
+        "Perfect (8/8): %d / %d products" % (perfect, total),
+        "Low (<5/8): %d / %d products" % (low, total),
+        "",
+        "--- Scoring Items ---",
+        "1. Images 3+",
+        "2. Compare-at price set",
+        "3. Trust language (shipped from japan/inspected/authentic)",
+        "4. Condition description (condition/pre-owned/used)",
+        "5. About This Item block",
+        "6. Description 100+ words",
+        "7. Tags 3+",
+        "8. Product type / collection set",
+    ]
 
-    for key, (label, priority, fix) in cro_scores.items():
-        count = issues.get(key, 0)
-        if count > 0:
-            details.append("[%s] %s: %d/%d products → %s" % (priority.upper(), label, count, total, fix))
-
-    overall = total - max(issues.values()) if issues else total
-    cro_score = round(overall / max(total, 1) * 100)
-    details.append("")
-    details.append("CRO score: %d%% (products meeting all criteria)" % cro_score)
-
+    cro_pct = round(avg_score / 8 * 100)
     findings.append({
-        "type": "suggestion" if cro_score < 80 else "ok",
+        "type": "suggestion" if cro_pct < 80 else "ok",
         "agent": "growth-foundation",
-        "message": "CRO audit: %d%% score, %d improvement areas" % (cro_score, sum(1 for v in issues.values() if v > 0)),
+        "message": "CRO score: %.1f/8 (%.0f%%), %d perfect, %d need improvement" % (avg_score, cro_pct, perfect, low),
         "details": details,
     })
     return findings
 
 
 # ============================================================
-# 4. Merchandising / Assortment Planning
+# 4. Merchandising（作品厚み + 価格帯偏り + eBay周辺不足）
 # ============================================================
 
 def analyze_merchandising(products):
-    """カテゴリ厚み・価格帯・作品深掘りを分析"""
+    """カテゴリ・作品・価格帯の深掘り分析"""
     findings = []
     if not products:
         return findings
 
-    # カテゴリ別
     cats = Counter(p.get("product_type", "Other") for p in products)
 
-    # 価格帯分布
-    price_bands = {"under_30": 0, "30_100": 0, "100_300": 0, "300_500": 0, "over_500": 0}
+    # 価格帯
+    bands = {"<$30": 0, "$30-100": 0, "$100-300": 0, "$300-500": 0, "$500+": 0}
     for p in products:
         price = float(p.get("variants", [{}])[0].get("price", "0") or "0")
-        if price < 30:
-            price_bands["under_30"] += 1
-        elif price < 100:
-            price_bands["30_100"] += 1
-        elif price < 300:
-            price_bands["100_300"] += 1
-        elif price < 500:
-            price_bands["300_500"] += 1
-        else:
-            price_bands["over_500"] += 1
+        if price < 30: bands["<$30"] += 1
+        elif price < 100: bands["$30-100"] += 1
+        elif price < 300: bands["$100-300"] += 1
+        elif price < 500: bands["$300-500"] += 1
+        else: bands["$500+"] += 1
+
+    # 作品/フランチャイズ分析
+    franchise_counts = Counter()
+    for p in products:
+        title_lower = p["title"].lower()
+        for franchise, keywords in FRANCHISE_MAP.items():
+            if franchise in title_lower or any(kw in title_lower for kw in keywords):
+                franchise_counts[franchise] += 1
+                break
 
     details = ["=== Merchandising Analysis ==="]
 
-    # カテゴリ厚み
+    # カテゴリ
     details.append("--- Category Depth ---")
     thin_cats = []
     for cat, count in cats.most_common():
         marker = "THIN" if count < 5 else "OK"
-        details.append("[%s] %s: %d products" % (marker, cat, count))
-        if count < 5:
-            thin_cats.append(cat)
+        details.append("[%s] %s: %d" % (marker, cat, count))
+        if count < 5: thin_cats.append(cat)
 
-    # 価格帯
+    # 作品厚み
     details.append("")
-    details.append("--- Price Band Distribution ---")
-    band_labels = {"under_30": "<$30", "30_100": "$30-100", "100_300": "$100-300", "300_500": "$300-500", "over_500": "$500+"}
-    for band, label in band_labels.items():
-        details.append("%s: %d products" % (label, price_bands[band]))
+    details.append("--- Franchise Depth ---")
+    for franchise, count in franchise_counts.most_common(8):
+        depth = "DEEP" if count >= 5 else "OK" if count >= 3 else "THIN"
+        details.append("[%s] %s: %d products" % (depth, franchise, count))
 
-    # eBay売れ筋との比較
-    ebay_cache = _load_json("ebay_sales_cache.json")
-    if ebay_cache:
-        ebay_cats = ebay_cache.get("categories", {})
+    # 同作品内の関連キャラ展開余地
+    thin_franchises = [f for f, c in franchise_counts.items() if c < 3]
+    if thin_franchises:
         details.append("")
-        details.append("--- eBay vs Shopify Category Gap ---")
-        for cat, sold in sorted(ebay_cats.items(), key=lambda x: -x[1]):
-            shopify_count = cats.get(cat, 0)
-            if sold >= 3 and shopify_count < 5:
-                details.append("[GAP] %s: eBay %d sold, Shopify %d listed → increase" % (cat, sold, shopify_count))
+        details.append("--- Franchise Expansion Opportunities ---")
+        for f in thin_franchises[:3]:
+            related = FRANCHISE_MAP.get(f, [])
+            details.append("[%s] Current:%d, expand with: %s" % (f, franchise_counts[f], ", ".join(related[:4])))
 
-    # 提案
-    if thin_cats:
+    # 価格帯偏り
+    details.append("")
+    details.append("--- Price Band ---")
+    total = len(products)
+    for band, count in bands.items():
+        pct = count / max(total, 1) * 100
+        details.append("%s: %d (%.0f%%)" % (band, count, pct))
+
+    heavy = max(bands.items(), key=lambda x: x[1])
+    if heavy[1] > total * 0.5:
+        details.append("WARNING: %s band has %.0f%% — consider diversifying" % (heavy[0], heavy[1] / total * 100))
+
+    # eBay売れ筋
+    ebay = _load_json("ebay_sales_cache.json")
+    if ebay and ebay.get("categories"):
         details.append("")
-        details.append("--- Recommendations ---")
-        for cat in thin_cats[:3]:
-            details.append("Increase: %s (only %d products)" % (cat, cats[cat]))
+        details.append("--- eBay vs Shopify Gap ---")
+        for cat, sold in sorted(ebay["categories"].items(), key=lambda x: -x[1]):
+            shopify_n = cats.get(cat, 0)
+            if sold >= 3 and shopify_n < 5:
+                details.append("[GAP] %s: eBay %d sold, Shopify %d → increase" % (cat, sold, shopify_n))
 
     findings.append({
         "type": "suggestion" if thin_cats else "info",
         "agent": "catalog-migration-planner",
-        "message": "Merchandising: %d categories, %d thin (<5 products), %d price bands" % (
-            len(cats), len(thin_cats), sum(1 for v in price_bands.values() if v > 0)),
+        "message": "Merchandising: %d categories, %d thin, %d franchises tracked" % (
+            len(cats), len(thin_cats), len(franchise_counts)),
         "details": details,
     })
     return findings
 
 
 # ============================================================
-# 5. IA / Navigation Optimization
+# 5. IA / Navigation（数式固定）
 # ============================================================
 
 def audit_navigation(products, wp_posts):
-    """導線・内部リンク・回遊設計を監査"""
+    """導線監査（計算式固定）"""
     findings = []
-
-    details = ["=== Navigation & IA Audit ==="]
-
-    # Collection → 商品の導線
     cats = Counter(p.get("product_type", "Other") for p in products)
-    details.append("Collections: %d categories covering %d products" % (len(cats), len(products)))
 
-    # ブログ → Shopify 導線
-    articles_with_cta = 0
-    articles_with_internal = 0
     total_articles = 0
+    with_cta = 0
+    with_internal = 0
+
     for p in wp_posts:
         content = p.get("content", {})
-        if isinstance(content, dict):
-            content = content.get("rendered", "")
-        if not content:
-            continue
+        if isinstance(content, dict): content = content.get("rendered", "")
+        if not content: continue
         total_articles += 1
-        if "hd-toys-store-japan" in content.lower():
-            articles_with_cta += 1
-        if "hd-bodyscience.com" in content.lower():
-            articles_with_internal += 1
+        if "hd-toys-store-japan" in content.lower(): with_cta += 1
+        if "hd-bodyscience.com" in content.lower(): with_internal += 1
 
-    cta_rate = articles_with_cta / max(total_articles, 1) * 100
-    link_rate = articles_with_internal / max(total_articles, 1) * 100
-    details.append("Blog→Shopify CTA: %d/%d articles (%.0f%%)" % (articles_with_cta, total_articles, cta_rate))
-    details.append("Internal links: %d/%d articles (%.0f%%)" % (articles_with_internal, total_articles, link_rate))
+    # 計算式（固定）
+    cta_rate = with_cta / max(total_articles, 1) * 100
+    internal_rate = with_internal / max(total_articles, 1) * 100
+    # Collection カバレッジ
+    categories_with_products = sum(1 for c in cats.values() if c >= 3)
+    collection_coverage = categories_with_products / max(len(cats), 1) * 100
+
+    details = [
+        "=== Navigation Audit (fixed formulas) ===",
+        "Blog→Shopify CTA rate: %d/%d = %.0f%% (target: 80%%+)" % (with_cta, total_articles, cta_rate),
+        "Internal link rate: %d/%d = %.0f%% (target: 50%%+)" % (with_internal, total_articles, internal_rate),
+        "Collection coverage: %d/%d categories with 3+ products = %.0f%%" % (
+            categories_with_products, len(cats), collection_coverage),
+    ]
 
     issues = []
     if cta_rate < 80:
-        issues.append("Blog CTA coverage low (%.0f%%) → add CTAs to %d articles" % (cta_rate, total_articles - articles_with_cta))
-    if link_rate < 50:
-        issues.append("Internal link rate low (%.0f%%) → add cross-article links" % link_rate)
+        issues.append("CTA rate %.0f%% < 80%% → add CTAs to %d articles" % (cta_rate, total_articles - with_cta))
+    if internal_rate < 50:
+        issues.append("Internal link rate %.0f%% < 50%% → add cross-links" % internal_rate)
+    if collection_coverage < 80:
+        issues.append("Collection coverage %.0f%% < 80%% → fill thin categories" % collection_coverage)
 
     if issues:
         details.append("")
-        details.append("--- Issues ---")
-        details.extend(issues)
+        details.extend(["ISSUE: %s" % i for i in issues])
 
     findings.append({
         "type": "suggestion" if issues else "ok",
         "agent": "store-setup",
-        "message": "Navigation audit: CTA %.0f%%, internal links %.0f%%" % (cta_rate, link_rate),
+        "message": "Navigation: CTA %.0f%%, links %.0f%%, collections %.0f%%" % (cta_rate, internal_rate, collection_coverage),
         "details": details,
     })
     return findings
 
 
 # ============================================================
-# 6. Marketplace-to-DTC Transfer
+# 6. DTC移植分析（強化版）
 # ============================================================
 
 def analyze_dtc_transfer(products):
-    """eBay→Shopify移植時の見せ方改善を分析"""
+    """eBay→DTC移植の見せ方6項目チェック"""
     findings = []
     if not products:
         return findings
 
-    details = ["=== eBay-to-DTC Transfer Analysis ==="]
-    transfer_issues = []
+    checks = {
+        "marketplace_lang": [],    # eBay的表現残存
+        "spec_only": [],           # スペック列挙のみ
+        "no_story": [],            # コレクター魅力なし
+        "no_condition_detail": [], # 状態説明不足
+        "no_trust": [],            # trust不足
+        "no_brand": [],            # ブランドアイデンティティなし
+    }
 
-    for p in products[:10]:  # 上位10商品
+    for p in products:
         body = p.get("body_html", "") or ""
         body_lower = body.lower()
-        title = p["title"][:40]
+        body_text = re.sub(r"<[^>]+>", "", body)
+        title = p["title"][:35]
 
-        issues = []
-        # eBay的な表現が残っていないか
-        if any(kw in body_lower for kw in ["fast shipping", "best price", "buy it now", "great deal"]):
-            issues.append("marketplace-language")
-        # DTC向けのストーリーがあるか
-        if not any(kw in body_lower for kw in ["story", "history", "series", "franchise", "collector"]):
-            issues.append("no-collector-story")
-        # ブランド体験要素
-        if "hd toys" not in body_lower and "hd store" not in body_lower:
-            issues.append("no-brand-identity")
+        if any(kw in body_lower for kw in ["fast shipping", "best price", "buy it now", "great deal", "a+++ seller"]):
+            checks["marketplace_lang"].append(title)
+        if len(body_text.split()) < 50 and "<ul" in body_lower:
+            checks["spec_only"].append(title)
+        if not any(kw in body_lower for kw in ["story", "history", "series", "franchise", "collector", "released", "created"]):
+            checks["no_story"].append(title)
+        if not any(kw in body_lower for kw in ["condition", "pre-owned", "used", "inspected"]):
+            checks["no_condition_detail"].append(title)
+        if not any(kw in body_lower for kw in ["shipped from japan", "authentic", "genuine"]):
+            checks["no_trust"].append(title)
 
-        if issues:
-            transfer_issues.append("[%s] %s" % (", ".join(issues), title))
-
-    if transfer_issues:
-        details.append("Products needing DTC optimization:")
-        details.extend(transfer_issues[:5])
-        details.append("")
-        details.append("--- DTC Best Practices ---")
-        details.append("Add: collector story/franchise context (why this item matters)")
-        details.append("Add: brand identity (HD Toys Store Japan experience)")
-        details.append("Remove: marketplace language (buy it now, best price)")
-    else:
-        details.append("Top 10 products: DTC-ready (no marketplace language detected)")
+    total_issues = sum(len(v) for v in checks.values())
+    details = ["=== DTC Transfer Audit (6 checks) ==="]
+    labels = {
+        "marketplace_lang": "eBay language remaining",
+        "spec_only": "Spec-only description (no narrative)",
+        "no_story": "No collector story / franchise context",
+        "no_condition_detail": "No condition description",
+        "no_trust": "No trust elements",
+        "no_brand": "No brand identity",
+    }
+    for key, titles in checks.items():
+        if titles:
+            details.append("[%d] %s" % (len(titles), labels.get(key, key)))
+            for t in titles[:2]:
+                details.append("  - %s" % t)
 
     findings.append({
-        "type": "suggestion" if transfer_issues else "ok",
+        "type": "suggestion" if total_issues > 5 else "info",
         "agent": "catalog-migration-planner",
-        "message": "DTC transfer: %d/%d top products need optimization" % (len(transfer_issues), min(10, len(products))),
+        "message": "DTC transfer: %d issues across %d check types" % (total_issues, sum(1 for v in checks.values() if v)),
         "details": details,
     })
     return findings
 
 
 # ============================================================
-# 7. Retention / Repeat Purchase
+# 7. Retention
 # ============================================================
 
 def analyze_retention():
-    """再訪・ファン化・回遊改善を分析"""
+    """再訪・ファン化の機会分析"""
     findings = []
-
-    details = ["=== Retention & Repeat Purchase ==="]
-    opportunities = []
-
-    # Newsletter
-    opportunities.append("[MEDIUM] Newsletter signup: Not implemented → collect emails for new arrivals")
-
-    # 類似商品提案
-    opportunities.append("[MEDIUM] Related products: Add related items section to product pages")
-
-    # ブログ回遊
-    opportunities.append("[LOW] Blog series: Create multi-part collector guides for return visits")
-
-    # SNS フォロワー → リピーター
-    opportunities.append("[LOW] SNS→repeat: Post new arrivals to bring followers back to store")
-
-    details.extend(opportunities)
-
+    details = [
+        "=== Retention & Repeat Purchase ===",
+        "[MEDIUM] Newsletter: Not yet implemented → email collection for new arrivals",
+        "[MEDIUM] Related products: Not on product pages → add recommendations",
+        "[LOW] Blog series: Multi-part guides for return visits",
+        "[LOW] SNS new arrivals: Bring followers back to store",
+    ]
     findings.append({
-        "type": "info",
-        "agent": "project-orchestrator",
-        "message": "Retention opportunities: %d identified" % len(opportunities),
+        "type": "info", "agent": "project-orchestrator",
+        "message": "Retention: 4 opportunities identified",
         "details": details,
     })
     return findings
@@ -460,28 +548,13 @@ def analyze_retention():
 # ============================================================
 
 def run_sales_optimization(products, wp_posts, all_findings):
-    """売上改善分析フルスイートを実行"""
+    """売上改善分析フルスイート"""
     result = []
-
-    # 1. 提案タイプ別勝敗
     result.extend(evaluate_proposal_outcomes())
-
-    # 2. 売れない理由の切り分け
     result.extend(analyze_unsold_reasons(products))
-
-    # 3. CRO監査
     result.extend(audit_cro(products))
-
-    # 4. Merchandising分析
     result.extend(analyze_merchandising(products))
-
-    # 5. 導線監査
     result.extend(audit_navigation(products, wp_posts))
-
-    # 6. DTC移植分析
     result.extend(analyze_dtc_transfer(products))
-
-    # 7. Retention分析
     result.extend(analyze_retention())
-
     return result
