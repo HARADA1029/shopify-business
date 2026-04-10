@@ -783,6 +783,20 @@ def run_safety_audit(all_findings):
             ref_rate = total_ref / max(total_cta, 1) * 100
             cart_rate = total_cart / max(total_ref, 1) * 100
             details.append("  Funnel: PV→CTA %.1f%% | CTA→Ref %.1f%% | Ref→Cart %.1f%%" % (cta_rate, ref_rate, cart_rate))
+
+            # ボトルネック特定
+            bottleneck = None
+            if cta_rate < 3:
+                bottleneck = "PV→CTA (%.1f%% — target: 3%%+). Fix: improve CTA visibility/copy" % cta_rate
+            elif ref_rate < 30:
+                bottleneck = "CTA→Ref (%.1f%% — target: 30%%+). Fix: strengthen trust in CTA, add product photos" % ref_rate
+            elif cart_rate < 10:
+                bottleneck = "Ref→Cart (%.1f%% — target: 10%%+). Fix: improve product page, add related items" % cart_rate
+
+            if bottleneck:
+                details.append("  BOTTLENECK: %s" % bottleneck)
+            else:
+                details.append("  Funnel healthy: all stages above target")
         else:
             details.append("  Funnel: awaiting pageview data (GA4 needs 24-48h)")
 

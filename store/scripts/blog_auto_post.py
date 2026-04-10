@@ -53,17 +53,21 @@ MIN_H2 = 3
 # CTA テンプレート
 CTA_TEMPLATE = '''
 <div style="margin:30px 0;padding:24px 20px;background:#f8f9fa;border:1px solid #e0e0e0;border-radius:10px;">
-<h3 style="font-size:17px;font-weight:bold;margin:0 0 12px 0;color:#333;">Where to Buy</h3>
-<p style="font-size:13px;color:#555;margin:0 0 12px 0;">Every item is carefully inspected and shipped directly from Japan. Pre-owned condition is documented with detailed photos.</p>
-<div style="display:flex;gap:10px;flex-wrap:wrap;">
+<h3 style="font-size:17px;font-weight:bold;margin:0 0 8px 0;color:#333;">Get This Item</h3>
+<p style="font-size:13px;color:#555;margin:0 0 14px 0;">This pre-owned item has been carefully inspected and is shipped directly from Japan with tracking. Condition is documented with multiple detailed photos so you know exactly what you're getting.</p>
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
 <a href="{shopify_url}" target="_blank" rel="noopener noreferrer"
-style="display:inline-block;padding:10px 22px;background:#4CAF50;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;font-size:14px;">
+style="display:inline-block;padding:12px 24px;background:#4CAF50;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;font-size:15px;">
 {shopify_text}</a>
 <a href="{ebay_url}" target="_blank" rel="noopener noreferrer"
-style="display:inline-block;padding:10px 22px;background:#0064D2;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;font-size:14px;">
+style="display:inline-block;padding:12px 24px;background:#0064D2;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;font-size:15px;">
 Browse on eBay</a>
 </div>
-<p style="font-size:12px;color:#888;margin:10px 0 0 0;">Shipped from Japan with tracking. Authentic items only.</p>
+<ul style="margin:0;padding-left:18px;font-size:12px;color:#666;">
+<li>Shipped from Japan with tracking number</li>
+<li>Carefully inspected for authenticity and condition</li>
+<li>Detailed photos of actual item included</li>
+</ul>
 </div>
 '''
 
@@ -438,24 +442,40 @@ def add_cta_and_links(article_html, product):
     handle = product["handle"]
     product_type = product.get("product_type", "")
 
-    shopify_link = "%s/products/%s?utm_source=hd-bodyscience&utm_medium=article&utm_campaign=blog-auto" % (SHOPIFY_URL, handle)
+    collection = COLLECTION_MAP.get(product_type, "all")
+    shopify_link = "%s/products/%s?utm_source=hd-bodyscience&utm_medium=article&utm_campaign=blog-auto&utm_content=%s" % (SHOPIFY_URL, handle, handle)
+    collection_link = "%s/collections/%s?utm_source=hd-bodyscience&utm_medium=article&utm_campaign=blog-auto" % (SHOPIFY_URL, collection)
     ebay_link = "https://www.ebay.com/str/hdtoysstore?utm_source=hd-bodyscience&utm_medium=article&utm_campaign=blog-auto"
 
-    # メインCTA（記事末尾）
+    # メインCTA（記事末尾 — 商品直リンク + コレクションリンク）
     main_cta = CTA_TEMPLATE.format(
         shopify_url=shopify_link,
-        shopify_text="View on HD Toys Store Japan",
+        shopify_text="View This Item",
         ebay_url=ebay_link,
     )
+    # コレクション導線（Ref→Cart改善 — 関連商品を見せる）
+    main_cta += (
+        '<p style="margin:8px 0 0 0;font-size:13px;text-align:center;">'
+        '<a href="%s" target="_blank" rel="noopener noreferrer" style="color:#4CAF50;">'
+        'Browse all %s →</a></p>'
+    ) % (collection_link, product_type or "items")
 
-    # ミニCTA（記事中盤に挿入 — PV→CTA率改善）
+    # ミニCTA（記事中盤 — 勝ちパターン: ship+inspect+condition 組み合わせ）
     mini_cta = (
-        '<p style="margin:20px 0;padding:12px 16px;background:#f0f7f0;border-left:4px solid #4CAF50;border-radius:4px;font-size:14px;">'
-        'Interested in this item? '
-        '<a href="%s" target="_blank" rel="noopener noreferrer" style="color:#4CAF50;font-weight:bold;">'
-        'View it on HD Toys Store Japan</a> — '
-        'carefully inspected, shipped from Japan.'
+        '<div style="margin:24px 0;padding:14px 18px;background:#f0f7f0;border-left:4px solid #4CAF50;border-radius:4px;">'
+        '<p style="margin:0 0 8px 0;font-size:14px;color:#333;">'
+        '<strong>Looking for this item?</strong> Every item at HD Toys Store Japan is:'
         '</p>'
+        '<ul style="margin:0 0 10px 0;padding-left:20px;font-size:13px;color:#555;">'
+        '<li>Shipped directly from Japan with tracking</li>'
+        '<li>Carefully inspected for condition and authenticity</li>'
+        '<li>Pre-owned condition documented with detailed photos</li>'
+        '</ul>'
+        '<a href="%s" target="_blank" rel="noopener noreferrer" '
+        'style="display:inline-block;padding:8px 18px;background:#4CAF50;color:#fff;'
+        'text-decoration:none;border-radius:5px;font-weight:bold;font-size:13px;">'
+        'View This Item</a>'
+        '</div>'
     ) % shopify_link
 
     # 記事の中盤（3番目のH2の前）にミニCTAを挿入
