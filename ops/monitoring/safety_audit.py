@@ -565,6 +565,41 @@ def run_safety_audit(all_findings):
             details.append("--- Warning Reduction Rate ---")
             details.append("Past 7d: %d warnings (no prior data for comparison)" % recent_warnings)
 
+    # === 重点監視サマリ ===
+    details.append("")
+    details.append("=== Priority Watch Items ===")
+
+    # 1. trust強化の成果
+    if ss_data:
+        trust_w = ss_data.get("scoring_weights", {}).get("trust_building", 2)
+        history = ss_data.get("success_by_action_history", [])
+        recent_trust = history[-1].get("actions", {}).get("trust_improvement", 0) if history else 0
+        details.append("[TRUST] Weight: %.1f, recent successes: %d" % (trust_w, recent_trust))
+
+    # 2. blog_content 抑制後の変化
+    if ss_data:
+        action_w = ss_data.get("action_type_weights", {})
+        blog_w = action_w.get("blog_content", 1.0)
+        if blog_w < 1.0:
+            details.append("[BLOG] blog_content weight: %.1f (suppressed) — monitoring for improvement")
+        else:
+            details.append("[BLOG] blog_content weight: %.1f (normal)" % blog_w)
+
+    # 3. sns-manager 偏差減少
+    if prev_log and prev_log.get("audits"):
+        sns_devs_recent = []
+        for a in prev_log["audits"][-7:]:
+            sns_devs_recent.append(a.get("deviations", 0))
+        if len(sns_devs_recent) >= 3:
+            first = sum(sns_devs_recent[:len(sns_devs_recent)//2]) / max(len(sns_devs_recent)//2, 1)
+            second = sum(sns_devs_recent[len(sns_devs_recent)//2:]) / max(len(sns_devs_recent) - len(sns_devs_recent)//2, 1)
+            if second < first * 0.7:
+                details.append("[SNS] Deviations DECREASING: %.1f → %.1f" % (first, second))
+            elif second > first * 1.3:
+                details.append("[SNS] Deviations INCREASING: %.1f → %.1f — review needed" % (first, second))
+            else:
+                details.append("[SNS] Deviations STABLE: %.1f → %.1f" % (first, second))
+
     severity = "critical" if mode == "maintenance" else "suggestion" if (triggers or len(side_effects) > 2) else "info" if all_issues else "ok"
     result.append({
         "type": severity,
@@ -852,6 +887,37 @@ def run_safety_audit(all_findings):
                     for atype, adopted, success, sr in sorted(low_effect, key=lambda x: x[3]):
                         details.append("[REVIEW] %s: %d adopted, %d success (%.0f%%) → reduce weight" % (atype, adopted, success, sr * 100))
 
+                # blog_content の詳細分解
+                if "blog_content" in [le[0] for le in low_effect] or success_by_action.get("blog_content", 0) > 0:
+                    blog_proposals = [p for p in pt_data.get("proposals", [])
+                                     if p.get("status") == "adopted" and any(kw in p.get("message", "").lower() for kw in ["blog", "article", "write"])]
+                    if blog_proposals:
+                        blog_sub = {"image_issue": 0, "category_issue": 0, "cta_issue": 0, "content_thin": 0, "link_issue": 0, "quality_ok": 0}
+                        for bp in blog_proposals:
+                            msg = bp.get("message", "").lower()
+                            result = bp.get("result", "")
+                            if result != "success":
+                                if "image" in msg or "photo" in msg:
+                                    blog_sub["image_issue"] += 1
+                                elif "category" in msg or "tag" in msg:
+                                    blog_sub["category_issue"] += 1
+                                elif "cta" in msg:
+                                    blog_sub["cta_issue"] += 1
+                                elif "short" in msg or "thin" in msg or "expand" in msg:
+                                    blog_sub["content_thin"] += 1
+                                elif "link" in msg or "internal" in msg:
+                                    blog_sub["link_issue"] += 1
+                                else:
+                                    blog_sub["content_thin"] += 1
+                            else:
+                                blog_sub["quality_ok"] += 1
+
+                        details.append("")
+                        details.append("--- blog_content Failure Breakdown ---")
+                        for sub, count in sorted(blog_sub.items(), key=lambda x: -x[1]):
+                            if count > 0:
+                                details.append("  [%d] %s" % (count, sub))
+
                 # trust_improvement 優先強化
                 trust_count = success_by_action.get("trust_improvement", 0)
                 total_success = sum(success_by_action.values())
@@ -871,16 +937,40 @@ def run_safety_audit(all_findings):
                     })
                     ss_data["success_by_action_history"] = ss_data["success_by_action_history"][-10:]
 
-                    # trust 重み強化
-                    if best_action[0] == "trust_improvement":
+                    # trust 重み強化 (商品ページ + ブログCTA + SNS投稿)
+                    trust_total = success_by_action.get("trust_improvement", 0)
+                    if best_action[0] == "trust_improvement" or (trust_total > 0 and trust_total >= total_success * 0.25):
                         weights = ss_data.get("scoring_weights", {})
                         cur = weights.get("trust_building", 2)
                         if cur < 4:
                             weights["trust_building"] = min(cur + 0.5, 4)
                             ss_data.setdefault("weight_adjustment_log", []).append({
                                 "date": NOW.strftime("%Y-%m-%d"),
-                                "adjustments": ["trust_building +0.5 (most effective action)"],
+                                "adjustments": ["trust_building +0.5 (effective across product/blog/SNS)"],
                             })
+
+                    # trust 適用範囲を拡大して追跡
+                    details.append("")
+                    details.append("--- trust_building Scope ---")
+                    # ブログCTAのtrust語チェック
+                    blog_trust = sum(1 for p in pt_data.get("proposals", [])
+                                    if p.get("result") == "success"
+                                    and any(kw in p.get("message", "").lower() for kw in ["blog", "article"])
+                                    and any(kw in p.get("message", "").lower() for kw in ["trust", "inspect", "shipped", "condition"]))
+                    # SNS投稿のtrust語チェック
+                    sns_trust = sum(1 for p in pt_data.get("proposals", [])
+                                   if p.get("result") == "success"
+                                   and any(kw in p.get("message", "").lower() for kw in ["sns", "instagram", "post"])
+                                   and any(kw in p.get("message", "").lower() for kw in ["trust", "inspect", "shipped", "condition"]))
+                    product_trust = trust_total - blog_trust - sns_trust
+
+                    details.append("  Product pages: %d trust successes" % max(product_trust, 0))
+                    details.append("  Blog CTAs: %d trust successes" % blog_trust)
+                    details.append("  SNS posts: %d trust successes" % sns_trust)
+                    if blog_trust == 0:
+                        details.append("  → Expand: Add trust language to blog CTA blocks")
+                    if sns_trust == 0:
+                        details.append("  → Expand: Add 'inspected & shipped from Japan' to SNS captions")
 
                     # 効果低い type の重み抑制
                     if low_effect:
