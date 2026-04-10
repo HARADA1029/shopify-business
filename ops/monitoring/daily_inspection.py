@@ -995,6 +995,60 @@ def inspect_sns_status():
             "message": "Shopify 専用 SNS 作成済み: %s" % ", ".join(created),
         })
 
+    # --- SNS 投稿実行結果チェック ---
+    posted_file = os.path.join(SCRIPT_DIR, "sns_posted.json")
+    if os.path.exists(posted_file):
+        try:
+            with open(posted_file, "r", encoding="utf-8") as f:
+                posted = json.load(f)
+            history = posted.get("history", [])
+
+            # 昨日の投稿を確認
+            from datetime import timedelta as _td
+            yesterday = (NOW - _td(days=1)).strftime("%Y-%m-%d")
+            yesterday_posts = [h for h in history if h.get("date") == yesterday]
+
+            expected_platforms = {"instagram", "facebook", "facebook_video", "instagram_reels", "youtube_shorts"}
+            actual_platforms = set(h.get("platform", "") for h in yesterday_posts)
+            missing_platforms = expected_platforms - actual_platforms
+
+            if yesterday_posts:
+                post_details = []
+                for h in yesterday_posts:
+                    post_details.append("[%s] %s" % (h.get("platform", "?"), h.get("title", "?")[:40]))
+
+                findings.append({
+                    "type": "ok", "agent": "sns-manager",
+                    "message": "SNS posts yesterday: %d posts on %d platforms" % (len(yesterday_posts), len(actual_platforms)),
+                    "details": post_details,
+                })
+            else:
+                findings.append({
+                    "type": "suggestion", "agent": "sns-manager",
+                    "message": "SNS posts yesterday: 0 posts (no posts recorded for %s)" % yesterday,
+                    "details": ["Check GitHub Actions workflow execution and sns_posted.json"],
+                })
+
+            # プラットフォーム別の欠落チェック
+            if missing_platforms:
+                missing_details = []
+                for p in sorted(missing_platforms):
+                    if p == "instagram_reels":
+                        missing_details.append("[%s] Not posted — check video hosting (WordPress upload)" % p)
+                    elif p == "youtube_shorts":
+                        missing_details.append("[%s] Not posted — check YouTube token and Veo generation" % p)
+                    else:
+                        missing_details.append("[%s] Not posted — check workflow logs" % p)
+
+                findings.append({
+                    "type": "suggestion", "agent": "sns-manager",
+                    "message": "SNS missing platforms yesterday: %s" % ", ".join(sorted(missing_platforms)),
+                    "details": missing_details,
+                })
+
+        except (json.JSONDecodeError, IOError):
+            pass
+
     return findings
 
 
@@ -1319,6 +1373,13 @@ from blog_automation import run_blog_automation
 from ebay_sales_analysis import run_ebay_sales_analysis
 from product_pdca import run_product_pdca
 from price_sync import sync_prices
+from image_sync import sync_images
+from experiment_manager import check_experiments, auto_register_experiments
+from research_audit import generate_research_report
+from data_sufficiency_audit import generate_data_sufficiency_report
+from self_learning_audit import generate_self_learning_audit
+from bug_audit import generate_bug_audit
+from state_consistency_audit import generate_consistency_audit, filter_findings_by_ledger
 
 
 # ============================================================
@@ -1346,8 +1407,27 @@ def _format_finding_line(f, prefix=""):
     return lines
 
 
+def _classify_task_status(all_findings):
+    """タスクを6区分に分類する"""
+    # 実施済み基盤（完了済みで安定稼働中）
+    completed_infra = [
+        "GA4 e-commerce events", "Shopify store setup", "eBay price sync",
+        "Collection setup", "Trust badges", "Shipping policy", "Refund policy",
+        "Instagram auto post", "Facebook auto post", "YouTube auto post",
+        "Blog auto post", "WordPress CTA", "UTM tracking",
+        "Daily inspection workflow", "SNS video post workflow",
+    ]
+    # 実施済み（活用改善フェーズ）
+    improvement_phase = [
+        "GA4 data → product PDCA", "Blog PDCA → article quality",
+        "SNS analytics → posting optimization", "Price sync → margin optimization",
+        "Competitive analysis → UI improvement", "Internal links → SEO boost",
+    ]
+    return completed_infra, improvement_phase
+
+
 def generate_markdown_report(all_findings, store_info):
-    """詳細 Markdown レポートを生成（改善提案型）"""
+    """詳細 Markdown レポートを生成（6区分フォーマット）"""
     critical, suggestion, medium_term, info, ok, action = classify_findings(all_findings)
 
     lines = []
@@ -1364,6 +1444,75 @@ def generate_markdown_report(all_findings, store_info):
             lines.append(f"- {f['message']}")
     lines.append("")
 
+    # === 6区分タスクステータス ===
+    completed_infra, improvement_phase = _classify_task_status(all_findings)
+
+    lines.append("## 📊 タスクステータス（6区分）")
+    lines.append("")
+
+    # 1. 実施済み
+    lines.append("### 1. 実施済み（基盤構築完了）")
+    lines.append("")
+    for item in completed_infra:
+        lines.append(f"- ✅ {item}")
+    lines.append("")
+
+    # 2. 実施済み（活用改善フェーズ）
+    lines.append("### 2. 実施済み（活用改善フェーズ）")
+    lines.append("")
+    for item in improvement_phase:
+        lines.append(f"- 🔄 {item}")
+    lines.append("")
+
+    # 3. 進行中
+    in_progress = [f for f in all_findings if "progress" in f.get("message", "").lower() or "running" in f.get("message", "").lower()]
+    lines.append(f"### 3. 進行中（{len(in_progress)}件）")
+    lines.append("")
+    if in_progress:
+        for f in in_progress[:5]:
+            lines.append(f"- 🔨 [{f.get('agent', '')}] {f['message'][:80]}")
+    else:
+        lines.append("- なし")
+    lines.append("")
+
+    # 4. 未着手
+    lines.append(f"### 4. 未着手")
+    lines.append("")
+    # pending_tasks.json から未着手を抽出
+    task_findings = [f for f in all_findings if "pending tasks" in f.get("message", "").lower()]
+    if task_findings:
+        for f in task_findings:
+            for d in f.get("details", [])[:5]:
+                lines.append(f"- ⬜ {d}")
+    else:
+        lines.append("- なし")
+    lines.append("")
+
+    # 5. 保留
+    hold_findings = [f for f in all_findings if "on_hold" in f.get("message", "").lower() or "waiting" in f.get("message", "").lower()]
+    lines.append(f"### 5. 保留（{len(hold_findings)}件）")
+    lines.append("")
+    if hold_findings:
+        for f in hold_findings[:3]:
+            lines.append(f"- ⏸️ [{f.get('agent', '')}] {f['message'][:80]}")
+    else:
+        lines.append("- なし")
+    lines.append("")
+
+    # 6. 改善提案のみ
+    lines.append(f"### 6. 改善提案のみ（{len(action)}件）")
+    lines.append("")
+    if action:
+        for f in action[:5]:
+            lines.extend(_format_finding_line(f))
+        if len(action) > 5:
+            lines.append(f"  ...他 {len(action) - 5}件")
+    else:
+        lines.append("- なし")
+    lines.append("")
+
+    # === 従来セクション ===
+
     # 🔴 要対応
     lines.append(f"## 🔴 要対応（{len(critical)}件）")
     lines.append("")
@@ -1378,10 +1527,11 @@ def generate_markdown_report(all_findings, store_info):
     lines.append(f"## 🚀 今日やると売上に効く改善（{len(suggestion)}件）")
     lines.append("")
     if suggestion:
-        # エージェント別にグループ化
         agents_order = [
             "growth-foundation", "store-setup", "price-auditor",
             "catalog-migration-planner", "fulfillment-ops",
+            "content-strategist", "competitive-intelligence",
+            "sns-manager", "blog-analyst", "self-learning",
         ]
         for agent in agents_order:
             agent_findings = [f for f in suggestion if f.get("agent") == agent]
@@ -1402,6 +1552,8 @@ def generate_markdown_report(all_findings, store_info):
         agents_order = [
             "growth-foundation", "store-setup", "price-auditor",
             "catalog-migration-planner", "fulfillment-ops",
+            "content-strategist", "competitive-intelligence",
+            "sns-manager", "blog-analyst",
         ]
         for agent in agents_order:
             agent_findings = [f for f in medium_term if f.get("agent") == agent]
@@ -1413,19 +1565,6 @@ def generate_markdown_report(all_findings, store_info):
                 lines.append("")
     else:
         lines.append("- なし")
-        lines.append("")
-
-    # 📝 今日のアクション提案
-    if action:
-        lines.append(f"## 📝 今日のアクション提案（{len(action)}件）")
-        lines.append("")
-        for f in action:
-            lines.extend(_format_finding_line(f))
-            lines.append("")
-    else:
-        lines.append("## 📝 今日のアクション提案（0件）")
-        lines.append("")
-        lines.append("- データ蓄積中")
         lines.append("")
 
     # ✓ 異常なし
@@ -1460,6 +1599,70 @@ def generate_markdown_report(all_findings, store_info):
             for d in f.get("details", [])[:3]:
                 lines.append(f"  - {d}")
         lines.append("")
+
+    # 🔗 状態整合性監査
+    consistency_findings = [f for f in all_findings if "State consistency" in f.get("message", "")]
+    if consistency_findings:
+        lines.append("## 🔗 状態整合性監査")
+        lines.append("")
+        for f in consistency_findings:
+            lines.append(f"### {f['message']}")
+            lines.append("")
+            for d in f.get("details", []):
+                lines.append(f"- {d}")
+            lines.append("")
+
+    # 🐛 バグ・異常監査
+    bug_findings = [f for f in all_findings if "Bug audit" in f.get("message", "") or "Quality anomal" in f.get("message", "")]
+    if bug_findings:
+        lines.append("## 🐛 バグ・異常監査")
+        lines.append("")
+        for f in bug_findings:
+            icon = {"critical": "🔴", "suggestion": "⚠️", "info": "ℹ️", "ok": "✅"}.get(f["type"], "📋")
+            lines.append(f"### {icon} {f['message']}")
+            lines.append("")
+            for d in f.get("details", []):
+                lines.append(f"- {d}")
+            lines.append("")
+
+    # 🧠 自己学習機能監査
+    learning_audit = [f for f in all_findings if "Self-learning" in f.get("message", "") or "Learning accuracy" in f.get("message", "") or "Learning logs" in f.get("message", "") or "Learning event" in f.get("message", "") or "API audit" in f.get("message", "") or "Self-learning improvement" in f.get("message", "")]
+    if learning_audit:
+        lines.append("## 🧠 自己学習機能監査")
+        lines.append("")
+        for f in learning_audit:
+            icon = {"action": "🔴", "suggestion": "⚠️", "info": "ℹ️"}.get(f["type"], "📋")
+            lines.append(f"### {icon} {f['message']}")
+            lines.append("")
+            for d in f.get("details", []):
+                lines.append(f"- {d}")
+            lines.append("")
+
+    # 📊 データ充足監査
+    data_findings = [f for f in all_findings if "Data sufficiency" in f.get("message", "") or "Data gaps" in f.get("message", "") or "Priority data gaps" in f.get("message", "")]
+    if data_findings:
+        lines.append("## 📊 データ充足監査")
+        lines.append("")
+        for f in data_findings:
+            icon = {"suggestion": "⚠️", "action": "🔴", "info": "ℹ️"}.get(f["type"], "📋")
+            lines.append(f"### {icon} {f['message']}")
+            lines.append("")
+            for d in f.get("details", []):
+                lines.append(f"- {d}")
+            lines.append("")
+
+    # 🔍 リサーチ監査
+    research_findings = [f for f in all_findings if "Research" in f.get("message", "") or "research" in f.get("message", "").lower() or "Business fit" in f.get("message", "") or "Deviation" in f.get("message", "") or "self-review" in f.get("message", "").lower()]
+    if research_findings:
+        lines.append("## 🔍 リサーチ監査")
+        lines.append("")
+        for f in research_findings:
+            icon = {"critical": "🚨", "suggestion": "⚠️", "info": "ℹ️"}.get(f["type"], "📋")
+            lines.append(f"### {icon} {f['message']}")
+            lines.append("")
+            for d in f.get("details", []):
+                lines.append(f"- {d}")
+            lines.append("")
 
     # 🔁 実行証跡
     evidence_findings = [f for f in all_findings if f.get("message", "").startswith(("Learning summary", "PDCA progress", "Cross-agent activity", "State files", "Self-check"))]
@@ -1695,6 +1898,9 @@ def main():
     print("[INFO] eBay→Shopify 価格同期...")
     all_findings.extend(sync_prices())
 
+    print("[INFO] eBay→Shopify 画像同期...")
+    all_findings.extend(sync_images())
+
     print("[INFO] catalog-migration-planner 点検...")
     all_findings.extend(inspect_catalog(products))
 
@@ -1779,8 +1985,34 @@ def main():
 
     all_findings.extend(check_agent_load(all_findings))
 
+    print("[INFO] 実験管理チェック...")
+    all_findings.extend(check_experiments())
+    auto_register_experiments(all_findings)
+
+    print("[INFO] リサーチ監査...")
+    all_findings.extend(generate_research_report(all_findings))
+
+    print("[INFO] データ充足監査...")
+    all_findings.extend(generate_data_sufficiency_report(all_findings))
+
+    print("[INFO] 自己学習機能監査...")
+    all_findings.extend(generate_self_learning_audit(all_findings))
+
+    print("[INFO] バグ・異常監査...")
+    all_findings.extend(generate_bug_audit(all_findings))
+
     print("[INFO] 実行証跡生成...")
     all_findings.extend(generate_execution_evidence(all_findings))
+
+    # 状態整合性監査（台帳ベース）
+    print("[INFO] 状態整合性監査...")
+    all_findings.extend(generate_consistency_audit(all_findings))
+
+    # 完了済みタスクの誤検知を除去
+    print("[INFO] 誤検知フィルタリング...")
+    all_findings, corrected = filter_findings_by_ledger(all_findings)
+    if corrected:
+        print("  Suppressed %d false positives" % len(corrected))
 
     print("[INFO] レポート生成...")
 
