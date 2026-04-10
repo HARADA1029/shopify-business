@@ -848,12 +848,41 @@ def report_passed_article_performance():
                         m.get("shopify_referrals", 0), m.get("add_to_cart", 0)))
 
             if weak:
-                details.append("WEAK articles:")
+                details.append("WEAK articles (reason breakdown):")
                 for w in weak[:3]:
                     m = w.get("metrics", {})
+                    reasons = []
+                    if m.get("pageviews", 0) < 5:
+                        reasons.append("low-discovery(SEO/導線不足)")
+                    elif m.get("cta_clicks", 0) == 0:
+                        reasons.append("no-CTA-click(CTA配置/訴求弱い)")
+                    elif m.get("shopify_referrals", 0) == 0:
+                        reasons.append("no-referral(CTA→Shopify遷移なし)")
+
+                    # 記事品質要因
+                    handle = w.get("handle", "")
+                    wp_id = w.get("wp_post_id", 0)
+                    # blog_state から品質データを取得
+                    gen = [a for a in state.get("articles_generated", []) if a.get("wp_post_id") == wp_id]
+                    if gen:
+                        q = gen[0].get("quality", {})
+                        if q.get("words", 0) < 1000:
+                            reasons.append("thin-content(%dw)" % q.get("words", 0))
+                        if q.get("images", 0) < 3:
+                            reasons.append("few-images(%d)" % q.get("images", 0))
+                        s = gen[0].get("settings", {})
+                        if not s.get("categories"):
+                            reasons.append("no-category")
+                        if not s.get("featured_media"):
+                            reasons.append("no-featured-image")
+
+                    if not reasons:
+                        reasons.append("unknown(needs manual review)")
+
                     details.append("  [WEAK] %s — pv:%d cta:%d ref:%d" % (
                         w.get("title", "?")[:30], m.get("pageviews", 0), m.get("cta_clicks", 0),
                         m.get("shopify_referrals", 0)))
+                    details.append("    Reasons: %s" % " + ".join(reasons))
 
     # === 記事タイプ別 add_to_cart 学習 ===
     if tracking_data:
@@ -892,6 +921,52 @@ def report_passed_article_performance():
             if best_type and best_rate > 0:
                 details.append("  Best for conversion: %s (%.1f%% cart rate) → increase this type" % (best_type, best_rate))
 
+        # guide vs single_review 詳細比較
+        guide_articles = [t for t in tracking_data if any(kw in t.get("title", "").lower() for kw in ["guide", "how to", "tips", "collector"])]
+        review_articles = [t for t in tracking_data if t not in guide_articles]
+
+        if guide_articles or review_articles:
+            details.append("")
+            details.append("--- guide vs single_review Deep Comparison ---")
+
+            for label, articles in [("guide", guide_articles), ("single_review", review_articles)]:
+                if not articles:
+                    details.append("  [%s] No articles yet" % label)
+                    continue
+
+                total_pv = sum(a.get("metrics", {}).get("pageviews", 0) for a in articles)
+                total_cta = sum(a.get("metrics", {}).get("cta_clicks", 0) for a in articles)
+                total_ref = sum(a.get("metrics", {}).get("shopify_referrals", 0) for a in articles)
+                total_cart = sum(a.get("metrics", {}).get("add_to_cart", 0) for a in articles)
+                count = len(articles)
+
+                # 品質指標（blog_state から取得）
+                avg_words = 0
+                avg_imgs = 0
+                trust_count = 0
+                for a in articles:
+                    gen = [g for g in state.get("articles_generated", []) if g.get("wp_post_id") == a.get("wp_post_id")]
+                    if gen:
+                        q = gen[0].get("quality", {})
+                        avg_words += q.get("words", 0)
+                        avg_imgs += q.get("images", 0)
+                        # trust文言チェック（タイトルから簡易推定）
+                        msg = gen[0].get("title", "").lower()
+                        if any(kw in msg for kw in ["ship", "inspect", "condition", "japan"]):
+                            trust_count += 1
+
+                avg_words = avg_words / max(count, 1)
+                avg_imgs = avg_imgs / max(count, 1)
+
+                details.append("  [%s] %d articles" % (label, count))
+                details.append("    Content: avg %.0fw, %.1f imgs, %d with trust context" % (avg_words, avg_imgs, trust_count))
+                details.append("    Funnel: pv:%d → cta:%d → ref:%d → cart:%d" % (total_pv, total_cta, total_ref, total_cart))
+                if total_pv > 0:
+                    details.append("    Rates: CTA %.1f%% | Ref %.1f%% | Cart %.1f%%" % (
+                        total_cta / total_pv * 100,
+                        total_ref / max(total_cta, 1) * 100,
+                        total_cart / max(total_ref, 1) * 100))
+
                 # shared_state に学習結果を保存
                 ss_path = os.path.join(SCRIPT_DIR, "shared_state.json")
                 try:
@@ -904,10 +979,47 @@ def report_passed_article_performance():
                         "type_data": {k: {"articles": v["articles"], "carts": v["total_cart"]} for k, v in type_cart.items()},
                     })
                     ss["blog_type_learning"] = ss["blog_type_learning"][-10:]
+
+                    # guide型の継続追跡
+                    guide_data = type_cart.get("guide", {"articles": 0, "total_cart": 0, "total_pv": 0})
+                    ss.setdefault("guide_tracking", []).append({
+                        "date": NOW.strftime("%Y-%m-%d"),
+                        "articles": guide_data["articles"],
+                        "carts": guide_data["total_cart"],
+                        "pv": guide_data["total_pv"],
+                        "cart_rate": round(guide_data["total_cart"] / max(guide_data["total_pv"], 1) * 100, 2),
+                    })
+                    ss["guide_tracking"] = ss["guide_tracking"][-14:]  # 14日分
+
                     with open(ss_path, "w", encoding="utf-8") as f:
                         json.dump(ss, f, indent=2, ensure_ascii=False)
                 except (json.JSONDecodeError, IOError):
                     pass
+
+        # guide型の7日推移表示
+        try:
+            with open(os.path.join(SCRIPT_DIR, "shared_state.json"), "r", encoding="utf-8") as f:
+                ss_read = json.load(f)
+            guide_history = ss_read.get("guide_tracking", [])
+            if len(guide_history) >= 2:
+                details.append("")
+                details.append("--- guide Type Trend ---")
+                for g in guide_history[-7:]:
+                    details.append("  [%s] %d articles, %d carts, %d pv (rate: %.1f%%)" % (
+                        g.get("date", "?"), g.get("articles", 0), g.get("carts", 0),
+                        g.get("pv", 0), g.get("cart_rate", 0)))
+
+                first = guide_history[-min(len(guide_history), 7)]
+                last = guide_history[-1]
+                if first.get("cart_rate", 0) > 0 and last.get("cart_rate", 0) > 0:
+                    if last["cart_rate"] > first["cart_rate"]:
+                        details.append("  TREND: guide cart rate IMPROVING (%.1f%% → %.1f%%)" % (first["cart_rate"], last["cart_rate"]))
+                    elif last["cart_rate"] < first["cart_rate"]:
+                        details.append("  TREND: guide cart rate DECLINING (%.1f%% → %.1f%%)" % (first["cart_rate"], last["cart_rate"]))
+                    else:
+                        details.append("  TREND: guide cart rate STABLE")
+        except (json.JSONDecodeError, IOError):
+            pass
 
     findings.append({
         "type": "info", "agent": "blog-analyst",
