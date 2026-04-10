@@ -539,6 +539,32 @@ def run_safety_audit(all_findings):
         for c in significant:
             details.append("[%s] [%s] %s" % (c["risk"].upper(), c["area"], c["detail"]))
 
+    # === M. Warning減少率 ===
+    pt_data = _load_json("proposal_tracking.json")
+    if pt_data and pt_data.get("consistency_warnings"):
+        cw = pt_data["consistency_warnings"]
+        seven_d = (NOW - timedelta(days=7)).strftime("%Y-%m-%d")
+        fourteen_d = (NOW - timedelta(days=14)).strftime("%Y-%m-%d")
+
+        recent_warnings = sum(w.get("count", 1) for w in cw if w.get("last_seen", "") >= seven_d)
+        older_warnings = sum(w.get("count", 1) for w in cw if fourteen_d <= w.get("last_seen", "") < seven_d)
+
+        if older_warnings > 0:
+            change_rate = (recent_warnings - older_warnings) / older_warnings * 100
+            details.append("")
+            details.append("--- Warning Reduction Rate ---")
+            details.append("Past 7d: %d warnings | Previous 7d: %d warnings" % (recent_warnings, older_warnings))
+            if change_rate < -20:
+                details.append("IMPROVING: %.0f%% reduction" % abs(change_rate))
+            elif change_rate > 20:
+                details.append("WORSENING: %.0f%% increase" % change_rate)
+            else:
+                details.append("STABLE: %.0f%% change" % change_rate)
+        elif recent_warnings > 0:
+            details.append("")
+            details.append("--- Warning Reduction Rate ---")
+            details.append("Past 7d: %d warnings (no prior data for comparison)" % recent_warnings)
+
     severity = "critical" if mode == "maintenance" else "suggestion" if (triggers or len(side_effects) > 2) else "info" if all_issues else "ok"
     result.append({
         "type": severity,

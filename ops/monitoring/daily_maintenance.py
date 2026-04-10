@@ -540,6 +540,72 @@ def _analyze_warning_trends():
             marker = "PRIORITY-FIX" if count >= 5 else "MONITOR"
             recurrence_details.append("[%s] %s: %d warnings" % (marker, ptype, count))
 
+    # === sns_post warning の原因別分解 ===
+    sns_warnings = [w for w in warnings if any(kw in w.get("warning", "").lower() for kw in ["sns", "instagram", "facebook", "post", "video"])]
+    if sns_warnings:
+        recurrence_details.append("")
+        recurrence_details.append("--- sns_post Warning Breakdown ---")
+
+        causes = {"expired_conflict": 0, "platform_skip": 0, "engagement_low": 0, "token_issue": 0, "other": 0}
+        for w in sns_warnings:
+            msg = w.get("warning", "").lower()
+            count = w.get("count", 1)
+            if "expired" in msg and "new proposal" in msg:
+                causes["expired_conflict"] += count
+            elif "skip" in msg or "not posted" in msg or "missing" in msg:
+                causes["platform_skip"] += count
+            elif "engagement" in msg or "reaction" in msg or "weak" in msg:
+                causes["engagement_low"] += count
+            elif "token" in msg or "auth" in msg:
+                causes["token_issue"] += count
+            else:
+                causes["other"] += count
+
+        cause_labels = {
+            "expired_conflict": "Expired-then-reproposed conflict",
+            "platform_skip": "Platform skip (posting failure)",
+            "engagement_low": "Low engagement / weak results",
+            "token_issue": "Token / authentication issue",
+            "other": "Other",
+        }
+        for cause, count in sorted(causes.items(), key=lambda x: -x[1]):
+            if count > 0:
+                recurrence_details.append("  [%d] %s" % (count, cause_labels[cause]))
+
+    # === article_theme 悪化予防 ===
+    article_warnings = [w for w in warnings if any(kw in w.get("warning", "").lower() for kw in ["article", "blog", "write", "content"])]
+    article_total = sum(w.get("count", 1) for w in article_warnings)
+
+    if article_total >= 2 and article_total < 5:
+        recurrence_details.append("")
+        recurrence_details.append("--- article_theme Preventive Alert ---")
+        recurrence_details.append("[PREVENT] article_theme has %d warnings (threshold for auto-promote: 5)" % article_total)
+        recurrence_details.append("  Recommended: review blog generation criteria before warnings escalate")
+        recurrence_details.append("  Check: image insertion, category setting, CTA placement, content depth")
+
+        # 予防修正: blog_quality_baseline を再確認するよう提案
+        import hashlib
+        prevent_hash = hashlib.md5(("prevent-article:%s" % NOW.strftime("%Y-%m-%d")).encode()).hexdigest()[:10]
+        existing_hashes = set(p.get("message_hash", "") for p in pt.get("proposals", []))
+        if prevent_hash not in existing_hashes:
+            pt["proposals"].append({
+                "id": "P-%s-prev" % NOW.strftime("%y%m%d"),
+                "message_hash": prevent_hash,
+                "date": NOW.strftime("%Y-%m-%d"),
+                "agent": "blog-analyst",
+                "type": "article_theme",
+                "message": "Preventive: article_theme warnings rising (%d) — review quality criteria" % article_total,
+                "score": 18,
+                "status": "pending",
+                "adopted_date": None, "result": None, "result_date": None,
+                "next_action": "Verify blog_auto_post.py quality gate and Gemini prompt",
+            })
+            pt["summary"]["total"] = len(pt["proposals"])
+            pt["summary"]["pending"] = sum(1 for p in pt["proposals"] if p.get("status") == "pending")
+            pt["summary"]["last_updated"] = NOW.strftime("%Y-%m-%d")
+            _save_json("proposal_tracking.json", pt)
+            auto_promoted.append("Preventive proposal for article_theme (warnings: %d)" % article_total)
+
     return trend_details, recurrence_details, auto_promoted
 
 
