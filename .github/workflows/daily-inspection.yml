@@ -8,6 +8,9 @@ on:
 env:
   SHOPIFY_API_VERSION: '2026-04'
 
+permissions:
+  contents: write
+
 jobs:
   inspect:
     runs-on: ubuntu-latest
