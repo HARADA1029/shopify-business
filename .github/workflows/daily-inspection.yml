@@ -58,14 +58,37 @@ jobs:
           PINTEREST_APP_SECRET: ${{ secrets.PINTEREST_APP_SECRET }}
         run: python ops/monitoring/daily_inspection.py
 
+      - name: Commit updated state files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f \
+            ops/monitoring/shared_state.json \
+            ops/monitoring/proposal_tracking.json \
+            ops/monitoring/experiment_log.json \
+            ops/monitoring/research_log.json \
+            ops/monitoring/price_sync_log.json \
+            ops/monitoring/blog_state.json \
+            ops/monitoring/sns_posted.json \
+            ops/monitoring/adoption_tracking.json \
+            ops/monitoring/bug_audit_log.json \
+            ops/monitoring/safety_audit_log.json \
+            ops/monitoring/maintenance_log.json \
+            ops/monitoring/design_audit_log.json \
+            ops/monitoring/newsletter_state.json \
+            ops/monitoring/image_sync_log.json \
+            ops/monitoring/sns_weights.json \
+            ops/monitoring/sns_learning.json \
+            ops/monitoring/infra_tasks.json \
+            ops/monitoring/proposal_filter_state.json \
+            ops/monitoring/product_comparison_cache.json \
+            ops/monitoring/ebay_sales_cache.json \
+            ops/monitoring/competitive_cache.json \
+            ops/monitoring/reports/ \
+            2>/dev/null || true
+          git diff --cached --quiet || git commit -m "Update daily inspection state files [auto]"
+          git push || true
+
       - name: Cleanup credentials
         if: always()
         run: rm -f .gcp_service_account.json .ebay_token.json .shopify_token.json .instagram_token.json
-
-      - name: Upload report artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: daily-report-${{ github.run_number }}
-          path: ops/monitoring/reports/
-          retention-days: 90
