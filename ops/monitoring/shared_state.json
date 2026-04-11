@@ -1,31 +1,31 @@
 {
   "_comment": "エージェント間共有データ。daily_inspection.py と action_suggestions.py が読み書きする。",
   "weekly_focus": {
-    "category": "Plush & Soft Toys",
+    "category": "Goods & Accessories",
     "week": "2026-W15",
     "set_by": "project-orchestrator",
-    "reason": "原田指示。Plush & Soft Toys 強化。5件活性化(3→8件)。ブログ・SNS・Collection強化を実施",
+    "reason": "原田指示。Goods & Accessories Active 4件、ブログ記事0件。カテゴリ強化が必要",
     "actions": {
       "products_to_add": [],
       "articles_to_write": [
-        "Japanese Plush Toys Collector Guide: Pokemon, Rilakkuma & More",
-        "Sylvanian Families from Japan: Rare Sets Worth Collecting"
+        "Japanese Anime Goods Collector Guide: Jackets, Posters & Limited Editions",
+        "Spirited Away Collectibles from Japan: Posters, Figures & More"
       ],
       "sns_posts": [
-        "pokemon-appletun-plush",
-        "rilakkuma-big-cushion",
-        "sylvanian-urban-life"
+        "jujutsu-kaisen-gojo-jacket",
+        "spirited-away-poster",
+        "identity-v-anniversary-box"
       ],
       "internal_links": [],
       "cta_improvements": []
     },
     "results": {},
     "previous_focus": {
-      "category": "Electronic Toys",
+      "category": "Plush & Soft Toys",
       "week": "2026-W15",
       "products_added": 5,
-      "articles_written": 2,
-      "outcome": "7 Electronic Toys active, 2 blog articles published"
+      "articles_written": 1,
+      "outcome": "8 Plush active, 1 blog article published"
     }
   },
   "active_experiments": [],
