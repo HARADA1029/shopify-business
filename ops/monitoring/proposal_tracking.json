@@ -321,14 +321,28 @@
       "result": "success",
       "result_date": "2026-04-11",
       "next_action": "Monitor for new products; shift to category_gap as primary"
+    },
+    {
+      "id": "P-260411-ga02",
+      "message_hash": "ga02",
+      "date": "2026-04-11",
+      "agent": "catalog-migration-planner",
+      "type": "category_gap",
+      "message": "Goods & Accessories: activated 5 drafts (4→9 products)",
+      "score": 20,
+      "status": "adopted",
+      "adopted_date": "2026-04-11",
+      "result": "success",
+      "result_date": "2026-04-11",
+      "next_action": "Track G&A views/sales over 14 days. Blog articles needed."
     }
   ],
   "summary": {
-    "total": 23,
-    "adopted": 21,
+    "total": 24,
+    "adopted": 22,
     "rejected": 0,
     "pending": 2,
-    "success": 20,
+    "success": 21,
     "failed": 0,
     "accuracy_by_type": {
       "page_improvement": {
