@@ -283,6 +283,22 @@ def main():
     # キャプション生成
     caption = generate_caption(product, category)
 
+    # 静止画品質チェック
+    print("[INFO] Image quality check...")
+    img_checks = {
+        "product_info": bool(product.get("title")),
+        "trust_text": any(kw in caption.lower() for kw in ["shipped from japan", "inspected", "pre-owned", "condition"]),
+        "cta_present": any(kw in caption.lower() for kw in ["link in bio", "shop", "store"]),
+        "hashtags": caption.count("#") >= 3,
+        "not_pushy": not any(kw in caption.lower() for kw in ["buy now", "hurry", "limited time"]),
+        "has_image": bool(image_url),
+    }
+    img_score = sum(img_checks.values())
+    print("  Image quality: %d/6" % img_score)
+    if img_score < 4:
+        print("[REJECT] Image quality too low (%d/6). Fix: %s" % (img_score, ", ".join(k for k, v in img_checks.items() if not v)))
+        return
+
     # 投稿
     print("[INFO] Posting to Instagram...")
     result = post_to_instagram(ig_token, image_url, caption)

@@ -1385,6 +1385,7 @@ from daily_maintenance import run_daily_maintenance
 from safety_audit import run_safety_audit
 from newsletter_audit import run_newsletter_audit
 from advanced_learning import run_advanced_learning
+from content_quality_gate import run_content_quality_audit
 from state_consistency_audit import generate_consistency_audit, filter_findings_by_ledger
 
 
@@ -1642,6 +1643,19 @@ def generate_markdown_report(all_findings, store_info):
         lines.append("")
         for f in consistency_findings:
             lines.append(f"### {f['message']}")
+            lines.append("")
+            for d in f.get("details", []):
+                lines.append(f"- {d}")
+            lines.append("")
+
+    # 🔒 コンテンツ品質ゲート
+    quality_findings = [f for f in all_findings if "Content quality" in f.get("message", "")]
+    if quality_findings:
+        lines.append("## 🔒 コンテンツ品質ゲート")
+        lines.append("")
+        for f in quality_findings:
+            icon = {"action": "🔴", "suggestion": "⚠️", "info": "ℹ️"}.get(f["type"], "📋")
+            lines.append(f"### {icon} {f['message']}")
             lines.append("")
             for d in f.get("details", []):
                 lines.append(f"- {d}")
@@ -2085,6 +2099,9 @@ def main():
 
     print("[INFO] Newsletter 監査...")
     all_findings.extend(run_newsletter_audit())
+
+    print("[INFO] コンテンツ品質監査...")
+    all_findings.extend(run_content_quality_audit(wp_posts_data))
 
     print("[INFO] 高度学習分析...")
     all_findings.extend(run_advanced_learning(products, all_findings))
