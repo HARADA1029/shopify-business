@@ -820,6 +820,7 @@ def run_daily_maintenance():
     reinforced = _auto_reinforce(all_issues)
 
     # expired_no_action のクリーンアップ
+    pt = _load_json("proposal_tracking.json")
     if pt:
         proposals = pt.get("proposals", [])
         cleaned = 0
