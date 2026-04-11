@@ -1034,6 +1034,21 @@ def generate_all_suggestions(products, wp_posts, wp_categories):
 
     # PROHIBIT対象を除外、SUPPRESS対象のスコアを減点
     prohibited, suppressed, held = _get_prohibited_types()
+
+    # sns_post は低confidenceのため基準見直し: 自動的にHOLDに追加
+    # confidence 40未満かつ成功実績なしの場合
+    adv_state_path = os.path.join(SCRIPT_DIR, "advanced_learning_state.json")
+    if os.path.exists(adv_state_path):
+        try:
+            with open(adv_state_path, "r", encoding="utf-8") as f:
+                adv = json.load(f)
+            confs = adv.get("confidences", {})
+            for ptype, conf in confs.items():
+                if conf < 30 and ptype not in prohibited and ptype not in suppressed:
+                    held.add(ptype)
+        except (json.JSONDecodeError, IOError):
+            pass
+
     before_count = len(all_findings)
 
     if prohibited:
@@ -1078,6 +1093,13 @@ def generate_all_suggestions(products, wp_posts, wp_categories):
         # HOLD: スコア30%減
         elif ptype in held:
             f["_score"] = max(int(f.get("_score", 0) * 0.7), 1)
+
+        # category_gap: 重点カテゴリと一致する提案を大幅ブースト
+        focus_cat = shared_state.get("weekly_focus", {}).get("category", "").lower()
+        if ptype == "category_gap" and focus_cat:
+            msg_lower = f.get("message", "").lower()
+            if focus_cat in msg_lower:
+                f["_score"] = int(f.get("_score", 0) * 1.5)  # 50%ブースト
 
         # カテゴリ失敗重み反映
         cat_weights = shared_state.get("category_failure_weights", {})
