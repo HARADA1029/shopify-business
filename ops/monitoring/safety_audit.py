@@ -337,6 +337,11 @@ def run_safety_audit(all_findings):
     result = []
     safety = _load_safety_state()
 
+    # 共通データの事前読み込み
+    ss_data = _load_json("shared_state.json") or {}
+    pt_data = _load_json("proposal_tracking.json") or {}
+    prev_log = _load_json("safety_audit_log.json") or {}
+
     # === A. 重み安全制限 ===
     weight_issues, weight_changes = enforce_weight_limits()
 
