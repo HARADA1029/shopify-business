@@ -205,6 +205,16 @@ def audit_content_quality(wp_posts):
         for lq in low_quality[:5]:
             details.append("  [%d/8] ID:%d %s — fix: %s" % (lq["score"], lq["id"], lq["title"], ", ".join(lq["failed"][:3])))
 
+    # blog_state 読み込み
+    blog_state = None
+    bs_path = os.path.join(SCRIPT_DIR, "blog_state.json")
+    if os.path.exists(bs_path):
+        try:
+            with open(bs_path, "r", encoding="utf-8") as f:
+                blog_state = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+
     # 比較拒否サマリ
     if blog_state:
         rejections = blog_state.get("rejections", [])
@@ -245,15 +255,6 @@ def audit_content_quality(wp_posts):
         details.append("Video posts: %d" % len(video_posts))
 
     # === 投稿拒否・再生成サマリ ===
-    blog_state = None
-    bs_path = os.path.join(SCRIPT_DIR, "blog_state.json")
-    if os.path.exists(bs_path):
-        try:
-            with open(bs_path, "r", encoding="utf-8") as f:
-                blog_state = json.load(f)
-        except (json.JSONDecodeError, IOError):
-            pass
-
     if blog_state:
         rejections = blog_state.get("rejections", [])
         generated = blog_state.get("articles_generated", [])
