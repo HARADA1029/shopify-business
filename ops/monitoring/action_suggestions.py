@@ -1094,12 +1094,20 @@ def generate_all_suggestions(products, wp_posts, wp_categories):
         elif ptype in held:
             f["_score"] = max(int(f.get("_score", 0) * 0.7), 1)
 
-        # category_gap: 重点カテゴリと一致する提案を大幅ブースト
+        # category_gap: 重点カテゴリ + 高Revenue Potentialカテゴリをブースト
         focus_cat = shared_state.get("weekly_focus", {}).get("category", "").lower()
-        if ptype == "category_gap" and focus_cat:
-            msg_lower = f.get("message", "").lower()
-            if focus_cat in msg_lower:
-                f["_score"] = int(f.get("_score", 0) * 1.5)  # 50%ブースト
+        msg_lower = f.get("message", "").lower()
+
+        if ptype == "category_gap" and focus_cat and focus_cat in msg_lower:
+            f["_score"] = int(f.get("_score", 0) * 1.5)  # 重点カテゴリ50%ブースト
+
+        # 高Revenue Potentialカテゴリ（上位3）の提案をブースト
+        high_revenue_cats = shared_state.get("high_revenue_categories", [])
+        if high_revenue_cats:
+            for hrc in high_revenue_cats[:3]:
+                if hrc.lower() in msg_lower:
+                    f["_score"] = int(f.get("_score", 0) * 1.3)  # 30%ブースト
+                    break
 
         # カテゴリ失敗重み反映
         cat_weights = shared_state.get("category_failure_weights", {})
