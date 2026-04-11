@@ -1383,6 +1383,7 @@ from design_audit import run_design_audit
 from sales_optimization import run_sales_optimization
 from daily_maintenance import run_daily_maintenance
 from safety_audit import run_safety_audit
+from newsletter_audit import run_newsletter_audit
 from state_consistency_audit import generate_consistency_audit, filter_findings_by_ledger
 
 
@@ -1640,6 +1641,19 @@ def generate_markdown_report(all_findings, store_info):
         lines.append("")
         for f in consistency_findings:
             lines.append(f"### {f['message']}")
+            lines.append("")
+            for d in f.get("details", []):
+                lines.append(f"- {d}")
+            lines.append("")
+
+    # 📧 Newsletter 監査
+    newsletter_findings = [f for f in all_findings if "Newsletter" in f.get("message", "") or "newsletter" in f.get("message", "")]
+    if newsletter_findings:
+        lines.append("## 📧 Newsletter")
+        lines.append("")
+        for f in newsletter_findings:
+            icon = {"action": "🔴", "suggestion": "⚠️", "info": "ℹ️", "ok": "✅"}.get(f["type"], "📋")
+            lines.append(f"### {icon} {f['message']}")
             lines.append("")
             for d in f.get("details", []):
                 lines.append(f"- {d}")
@@ -2057,6 +2071,9 @@ def main():
 
     print("[INFO] SNS 最適化ループ...")
     all_findings.extend(run_sns_optimization())
+
+    print("[INFO] Newsletter 監査...")
+    all_findings.extend(run_newsletter_audit())
 
     print("[INFO] 未実装タスク追跡...")
     all_findings.extend(generate_task_report())
