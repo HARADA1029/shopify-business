@@ -435,6 +435,150 @@ def rank_categories(pt_data):
 
 
 # ============================================================
+# 11. Confidence 変化 + 提案順位変化
+# ============================================================
+
+def track_confidence_changes(confidences, state):
+    """confidence の前回比と提案順位変化を表示"""
+    details = ["=== Confidence Change Tracking ==="]
+
+    prev_conf = state.get("prev_confidences", {})
+    if not prev_conf:
+        details.append("First run — no previous data for comparison")
+        return details
+
+    # 変化を計算
+    all_types = set(list(confidences.keys()) + list(prev_conf.keys()))
+    changes = []
+    for ptype in sorted(all_types):
+        curr = confidences.get(ptype, 0)
+        prev = prev_conf.get(ptype, 0)
+        diff = curr - prev
+        if diff != 0:
+            changes.append((ptype, prev, curr, diff))
+
+    if changes:
+        details.append("%-20s | Prev | Curr | Change" % "Type")
+        details.append("-" * 50)
+        for ptype, prev, curr, diff in sorted(changes, key=lambda x: -abs(x[3])):
+            arrow = "↑" if diff > 0 else "↓"
+            details.append("%-20s | %4d | %4d | %s%+d" % (ptype, prev, curr, arrow, diff))
+    else:
+        details.append("No confidence changes since last run")
+
+    # 順位変化
+    prev_ranked = sorted(prev_conf.items(), key=lambda x: -x[1])
+    curr_ranked = sorted(confidences.items(), key=lambda x: -x[1])
+    prev_order = {t: i for i, (t, _) in enumerate(prev_ranked)}
+    curr_order = {t: i for i, (t, _) in enumerate(curr_ranked)}
+
+    rank_changes = []
+    for ptype in confidences:
+        prev_rank = prev_order.get(ptype, len(prev_order))
+        curr_rank = curr_order.get(ptype, len(curr_order))
+        if prev_rank != curr_rank:
+            rank_changes.append((ptype, prev_rank + 1, curr_rank + 1))
+
+    if rank_changes:
+        details.append("")
+        details.append("Rank changes:")
+        for ptype, prev_r, curr_r in rank_changes:
+            arrow = "↑" if curr_r < prev_r else "↓"
+            details.append("  %s: #%d → #%d %s" % (ptype, prev_r, curr_r, arrow))
+
+    return details
+
+
+# ============================================================
+# 12. 低Confidence施策の継続追跡
+# ============================================================
+
+def track_low_confidence(confidences, pt_data):
+    """confidence < 40 の施策を追跡し、40到達まで監視"""
+    details = ["=== Low Confidence Watch ==="]
+
+    low_types = [(t, c) for t, c in confidences.items() if c < 40]
+    if not low_types:
+        details.append("No low-confidence types — all types at 40+")
+        return details
+
+    for ptype, conf in sorted(low_types, key=lambda x: x[1]):
+        # 40到達に必要なサンプル数を推定
+        accuracy = pt_data.get("summary", {}).get("accuracy_by_type", {}).get(ptype, {})
+        adopted = accuracy.get("adopted", 0)
+        success = accuracy.get("success", 0)
+
+        # confidence = sample*5 + days*2 + rate*30 + consistency*20
+        # 40到達に必要な追加サンプル: (40 - conf) / 5 ≈ needed
+        needed = max(1, int((40 - conf) / 5))
+        details.append("[conf:%d] %s — need ~%d more adopted proposals to reach 40" % (conf, ptype, needed))
+        details.append("  Current: %d adopted, %d success" % (adopted, success))
+
+        if adopted >= 2 and success == 0:
+            details.append("  WARNING: 0% success rate — consider SUPPRESS or criteria change")
+
+    return details
+
+
+# ============================================================
+# 13. 高Confidence/高利益/高効率の売上効果確認
+# ============================================================
+
+def evaluate_top_performers(confidences, products, pt_data):
+    """high confidence + high profit + high efficiency の売上効果"""
+    details = ["=== Top Performer Impact ==="]
+
+    # 効率マップ
+    accuracy = pt_data.get("summary", {}).get("accuracy_by_type", {})
+
+    # スコアリング: confidence × success_rate × (1/effort)
+    effort_weight = {"low": 3, "medium": 2, "high": 1}
+    scored = []
+
+    for ptype in accuracy:
+        conf = confidences.get(ptype, 0)
+        data = accuracy[ptype]
+        adopted = data.get("adopted", 0)
+        success = data.get("success", 0)
+        rate = success / max(adopted, 1)
+        effort = EFFORT_MAP.get(ptype, "medium")
+        eff_w = effort_weight.get(effort, 2)
+
+        # 総合スコア = confidence × success_rate × effort_efficiency
+        total_score = conf * rate * eff_w
+        scored.append((ptype, conf, rate, effort, total_score, adopted, success))
+
+    scored.sort(key=lambda x: -x[4])
+
+    if scored:
+        details.append("%-20s | Conf | Rate | Effort | Score" % "Type")
+        details.append("-" * 60)
+        for ptype, conf, rate, effort, score, adopted, success in scored:
+            marker = "★" if score >= 150 else "○" if score >= 50 else " "
+            details.append("%s %-19s | %4d | %3.0f%% | %-6s | %5.0f (%d/%d)" % (
+                marker, ptype, conf, rate * 100, effort, score, success, adopted))
+
+        # 売上導線への効果
+        top = scored[0]
+        details.append("")
+        details.append("Top performer: %s (score: %.0f)" % (top[0], top[4]))
+        details.append("  → Prioritize: more %s proposals with confidence %d" % (top[0], top[1]))
+
+        # 売上ファネルとの接続
+        blog_state = _load_json("blog_state.json")
+        if blog_state:
+            tracking = blog_state.get("post_publish_tracking", [])
+            if tracking:
+                total_cart = sum(t.get("metrics", {}).get("add_to_cart", 0) for t in tracking)
+                total_ref = sum(t.get("metrics", {}).get("shopify_referrals", 0) for t in tracking)
+                details.append("  Sales funnel: %d Shopify referrals → %d add_to_cart" % (total_ref, total_cart))
+            else:
+                details.append("  Sales funnel: awaiting post-publish tracking data")
+
+    return details
+
+
+# ============================================================
 # メインエントリポイント
 # ============================================================
 
@@ -486,7 +630,17 @@ def run_advanced_learning(products, all_findings):
         "details": all_details,
     })
 
-    # State保存
+    # 11. Confidence 変化追跡
+    all_details.extend(track_confidence_changes(confidences, state))
+
+    # 12. 低Confidence追跡
+    all_details.extend(track_low_confidence(confidences, pt_data))
+
+    # 13. Top Performer Impact
+    all_details.extend(evaluate_top_performers(confidences, products, pt_data))
+
+    # State保存（prev_confidences を保持して次回比較用）
+    state["prev_confidences"] = state.get("confidences", {})
     state["confidences"] = confidences
     state["workflow_health"] = wf_score
     state["versions"] = CURRENT_VERSIONS
