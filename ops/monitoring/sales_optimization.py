@@ -873,7 +873,7 @@ def run_sales_optimization(products, wp_posts, all_findings):
 # ============================================================
 
 def _apply_comparison_to_weights():
-    """比較分析結果をshared_stateのscoring_weightsに反映（安全制限付き）"""
+    """比較分析結果をshared_stateのscoring_weightsに反映（confidence連動 + 安全制限付き）"""
     findings = []
 
     # 保守モードチェック
@@ -887,6 +887,10 @@ def _apply_comparison_to_weights():
             return findings
     except ImportError:
         pass
+
+    # confidence データを読み込み
+    adv_state = _load_json("advanced_learning_state.json") or {}
+    confidences = adv_state.get("confidences", {})
 
     pt = _load_json("proposal_tracking.json")
     if not pt or not pt.get("proposals"):
@@ -912,15 +916,22 @@ def _apply_comparison_to_weights():
 
         rate = success / adopted
 
-        if rate >= 0.8:
-            # 高成功率 → データ根拠の重みを上げる
+        # Confidence 連動: 信頼度が低い場合は変更幅を縮小
+        conf = confidences.get(ptype, 50)
+        conf_factor = conf / 100  # 0.0 - 1.0
+
+        if rate >= 0.8 and conf >= 40:
+            # 高成功率 + 中以上の信頼度 → 重みを上げる
+            change = 0.5 * conf_factor  # confidence高いほど大きく変更
             current = weights.get("data_evidence", 2)
-            if current < 3:
-                weights["data_evidence"] = min(current + 0.5, 4)
-                adjustments.append("data_evidence +0.5 (high success in %s: %.0f%%)" % (ptype, rate * 100))
+            if current < 4:
+                weights["data_evidence"] = min(current + change, 4)
+                adjustments.append("data_evidence +%.2f (high success %s: %.0f%%, confidence: %d)" % (change, ptype, rate * 100, conf))
+        elif rate >= 0.8 and conf < 40:
+            adjustments.append("INFO: %s high success (%.0f%%) but LOW confidence (%d) — no weight change yet" % (ptype, rate * 100, conf))
         elif rate < 0.3 and adopted >= 3:
-            # 低成功率 → 該当タイプの重みを下げる提案
-            adjustments.append("WARNING: %s has %.0f%% success rate — reduce weight or tighten criteria" % (ptype, rate * 100))
+            change = 0.3 * conf_factor
+            adjustments.append("WARNING: %s has %.0f%% success (confidence: %d) — reduce weight by %.2f" % (ptype, rate * 100, conf, change))
 
     # SNS勝ちパターンから重み調整
     posted = _load_json("sns_posted.json")

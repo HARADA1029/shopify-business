@@ -819,6 +819,21 @@ def run_daily_maintenance():
     # 自動補強
     reinforced = _auto_reinforce(all_issues)
 
+    # expired_no_action のクリーンアップ
+    if pt:
+        proposals = pt.get("proposals", [])
+        cleaned = 0
+        for p in proposals:
+            if p.get("status") == "expired" and not p.get("result"):
+                # 30日超のexpiredを完全除去対象にマーク
+                days = (NOW.replace(tzinfo=None) - datetime.strptime(p.get("date", NOW.strftime("%Y-%m-%d")), "%Y-%m-%d")).days if p.get("date") else 999
+                if days > 30:
+                    p["status"] = "archived"
+                    cleaned += 1
+        if cleaned > 0:
+            all_fixes.append("Archived %d expired proposals (>30 days)" % cleaned)
+            _save_json("proposal_tracking.json", pt)
+
     # 整合性チェック
     inconsistencies = _check_fix_consistency(all_issues, all_fixes)
 

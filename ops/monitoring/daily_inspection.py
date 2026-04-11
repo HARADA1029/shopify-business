@@ -2142,6 +2142,23 @@ def main():
     if corrected:
         print("  Suppressed %d false positives" % len(corrected))
 
+    # State freshness 更新（全主要ファイルのタイムスタンプを更新）
+    for state_file in ["shared_state.json", "proposal_tracking.json", "blog_state.json"]:
+        spath = os.path.join(SCRIPT_DIR, state_file)
+        if os.path.exists(spath):
+            try:
+                with open(spath, "r", encoding="utf-8") as f:
+                    sdata = json.load(f)
+                for key in ("last_updated", "_last_updated"):
+                    if key in sdata:
+                        sdata[key] = DATE_STR
+                if "summary" in sdata and "last_updated" in sdata["summary"]:
+                    sdata["summary"]["last_updated"] = DATE_STR
+                with open(spath, "w", encoding="utf-8") as f:
+                    json.dump(sdata, f, indent=2, ensure_ascii=False)
+            except (json.JSONDecodeError, IOError):
+                pass
+
     print("[INFO] レポート生成...")
 
     md_report = generate_markdown_report(all_findings, shop)
