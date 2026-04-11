@@ -823,7 +823,7 @@ def main():
                 article_html = retry_article
                 print("[OK] Attempt %d passed!" % attempt)
 
-        # 全リトライ後も不合格の場合: 拒否ログに記録し、次の商品で再挑戦
+        # 全リトライ後も不合格 → 拒否ログ + 別商品で再挑戦
         if not qc["passed"]:
             blog_state.setdefault("rejections", []).append({
                 "date": today_str,
@@ -835,43 +835,84 @@ def main():
                 "img_count": qc["img_count"],
                 "retry_attempted": True,
                 "attempts": max_retries,
+                "fallback": "alternative",
             })
             save_blog_state(blog_state)
 
-            # 別の商品で再挑戦
-            print("[INFO] Trying next product...")
-            blog_state["_skip_handles"] = blog_state.get("_skip_handles", []) + [handle]
-            next_product = select_product_for_article(
-                [p for p in products if p.get("handle") not in blog_state.get("_skip_handles", [])],
-                blog_state,
-            )
-            if next_product:
-                print("[INFO] Selected alternative: %s" % next_product["title"][:50])
-                product = next_product
-                title = product["title"]
-                handle = product["handle"]
-                product_type = product.get("product_type", "")
+            # === 層2: 別商品の代替候補（最大3商品まで試行） ===
+            skip_handles = blog_state.get("_skip_handles", []) + [handle]
+            blog_state["_skip_handles"] = skip_handles
+            alt_passed = False
 
-                alt_article = generate_article_with_gemini(product)
-                if alt_article:
-                    alt_article = insert_images(alt_article, product)
-                    alt_article = add_cta_and_links(alt_article, product)
-                    al = alt_article.lower()
-                    if "hd-bodyscience.com" not in al:
-                        alt_article += '<p>Read more on <a href="https://hd-bodyscience.com/">our blog</a>.</p>'
-                    if "shipped from japan" not in al:
-                        alt_article += '<p>All items shipped directly from Japan with tracking.</p>'
+            for alt_attempt in range(3):
+                remaining = [p for p in products if p.get("handle") not in skip_handles and p.get("images")]
+                alt_product = None
+                if remaining:
+                    remaining.sort(key=lambda p: -len(p.get("images", [])))
+                    alt_product = remaining[0]
 
-                    qc = quality_check(alt_article, product)
-                    if qc["passed"]:
-                        article_html = alt_article
-                        print("[OK] Alternative product passed! (%d words)" % qc["word_count"])
-                    else:
-                        print("[WARN] Alternative also failed. Publishing best version.")
-                        article_html = alt_article  # 最善版を投稿
+                if not alt_product:
+                    break
 
-            if not qc["passed"]:
-                print("[WARN] All attempts exhausted. Publishing best available version to guarantee daily post.")
+                print("[ALT %d] Trying: %s" % (alt_attempt + 1, alt_product["title"][:45]))
+                skip_handles.append(alt_product["handle"])
+
+                alt_article = generate_article_with_gemini(alt_product)
+                if not alt_article:
+                    continue
+
+                alt_article = insert_images(alt_article, alt_product)
+                alt_article = add_cta_and_links(alt_article, alt_product)
+                al = alt_article.lower()
+                if "hd-bodyscience.com" not in al:
+                    alt_article += '<p>Read more on <a href="https://hd-bodyscience.com/">our blog</a>.</p>'
+                if "shipped from japan" not in al:
+                    alt_article += '<p>All items shipped directly from Japan with tracking.</p>'
+
+                alt_qc = quality_check(alt_article, alt_product)
+                print("  Result: Words:%d Comparison:%d/10 — %s" % (
+                    alt_qc["word_count"], alt_qc.get("comparison_total", 0), "PASSED" if alt_qc["passed"] else "FAILED"))
+
+                if alt_qc["passed"]:
+                    article_html = alt_article
+                    product = alt_product
+                    title = product["title"]
+                    handle = product["handle"]
+                    product_type = product.get("product_type", "")
+                    qc = alt_qc
+                    alt_passed = True
+                    print("[OK] Alternative passed!")
+                    break
+
+            # === 層3: 品質通過済みストック ===
+            if not alt_passed:
+                stock = blog_state.get("quality_stock", [])
+                if stock:
+                    print("[STOCK] Using pre-approved stock article...")
+                    stock_entry = stock.pop(0)
+                    article_html = stock_entry["content"]
+                    title = stock_entry["title"]
+                    handle = stock_entry["handle"]
+                    product_type = stock_entry.get("category", "")
+                    product = {"title": title, "handle": handle, "product_type": product_type, "images": []}
+                    qc = stock_entry.get("quality", {"passed": True, "word_count": 0, "img_count": 0, "h2_count": 0})
+                    save_blog_state(blog_state)
+                    print("[OK] Stock article: %s" % title[:40])
+                else:
+                    # ストックもない → 品質未達だが投稿しない（翌日に再挑戦）
+                    print("[CRITICAL] No quality-passing candidate found today.")
+                    print("[INFO] Saving failed article to retry queue for tomorrow.")
+                    blog_state.setdefault("retry_queue", []).append({
+                        "date": today_str,
+                        "handle": handle,
+                        "title": title[:80],
+                        "reason": "all_candidates_failed",
+                    })
+                    save_blog_state(blog_state)
+                    return
+
+    # === ストック補充: 品質通過した記事が余裕あれば次回用に保存 ===
+    # （メインフローの後で、別商品の記事を1本ストック生成する）
 
     print("[OK] Quality check passed!")
     print()
@@ -980,5 +1021,72 @@ def main():
                 pass
 
 
+def generate_stock_article(products, blog_state):
+    """品質通過済みストック記事を1本生成して保存"""
+    stock = blog_state.get("quality_stock", [])
+    if len(stock) >= 3:
+        return  # ストック3本以上あれば不要
+
+    written = set(a.get("handle", "") for a in blog_state.get("articles_generated", []))
+    stocked = set(s.get("handle", "") for s in stock)
+    skip = blog_state.get("_skip_handles", [])
+
+    candidates = [p for p in products
+                  if p.get("handle") not in written
+                  and p.get("handle") not in stocked
+                  and p.get("handle") not in skip
+                  and p.get("images")]
+    candidates.sort(key=lambda p: -len(p.get("images", [])))
+
+    if not candidates:
+        return
+
+    product = candidates[0]
+    print("[STOCK] Generating stock article: %s" % product["title"][:40])
+
+    article = generate_article_with_gemini(product)
+    if not article:
+        return
+
+    article = insert_images(article, product)
+    article = add_cta_and_links(article, product)
+    al = article.lower()
+    if "hd-bodyscience.com" not in al:
+        article += '<p>Read more on <a href="https://hd-bodyscience.com/">our blog</a>.</p>'
+    if "shipped from japan" not in al:
+        article += '<p>All items shipped directly from Japan with tracking.</p>'
+
+    qc = quality_check(article, product)
+    if qc["passed"]:
+        stock.append({
+            "handle": product["handle"],
+            "title": product["title"][:80],
+            "category": product.get("product_type", ""),
+            "content": article,
+            "quality": {
+                "words": qc["word_count"],
+                "images": qc["img_count"],
+                "h2": qc["h2_count"],
+                "passed": True,
+            },
+            "generated_date": NOW.strftime("%Y-%m-%d"),
+        })
+        blog_state["quality_stock"] = stock
+        save_blog_state(blog_state)
+        print("[STOCK] Saved: %s (%d words)" % (product["title"][:35], qc["word_count"]))
+    else:
+        print("[STOCK] Quality failed, not stocked")
+
+
 if __name__ == "__main__":
     main()
+
+    # メイン投稿後にストック補充（GitHub Actionsで実行時のみ）
+    import os as _os
+    if _os.environ.get("GITHUB_ACTIONS"):
+        try:
+            _bs = load_blog_state()
+            _products = get_shopify_products()
+            generate_stock_article(_products, _bs)
+        except Exception:
+            pass
