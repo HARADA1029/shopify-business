@@ -583,12 +583,22 @@ def post_to_wordpress(title, content, categories=None, tags=None, featured_media
 
 
 def upload_featured_image(image_url, title):
-    """商品のメイン画像をWordPressにアップロードしてアイキャッチに設定"""
+    """商品のメイン画像を500x400pxにリサイズしてWordPressにアップロード"""
     try:
         # 画像をダウンロード
         img_resp = requests.get(image_url, timeout=30)
         if img_resp.status_code != 200:
             return None
+
+        # 500x400px にリサイズ
+        from io import BytesIO
+        from PIL import Image
+        img = Image.open(BytesIO(img_resp.content))
+        img = img.convert("RGB")
+        img = img.resize((500, 400), Image.LANCZOS)
+        buffer = BytesIO()
+        img.save(buffer, format="JPEG", quality=85)
+        resized_data = buffer.getvalue()
 
         # WordPressにアップロード
         filename = "%s.jpg" % title[:30].replace(" ", "-").replace("/", "-").lower()
@@ -599,7 +609,7 @@ def upload_featured_image(image_url, title):
                 "Content-Disposition": "attachment; filename=%s" % filename,
                 "Content-Type": "image/jpeg",
             },
-            data=img_resp.content,
+            data=resized_data,
             timeout=30,
         )
         if upload_resp.status_code == 201:
