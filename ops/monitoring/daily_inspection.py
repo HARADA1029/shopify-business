@@ -1384,6 +1384,7 @@ from sales_optimization import run_sales_optimization
 from daily_maintenance import run_daily_maintenance
 from safety_audit import run_safety_audit
 from newsletter_audit import run_newsletter_audit
+from advanced_learning import run_advanced_learning
 from state_consistency_audit import generate_consistency_audit, filter_findings_by_ledger
 
 
@@ -1642,6 +1643,16 @@ def generate_markdown_report(all_findings, store_info):
         for f in consistency_findings:
             lines.append(f"### {f['message']}")
             lines.append("")
+            for d in f.get("details", []):
+                lines.append(f"- {d}")
+            lines.append("")
+
+    # 🧪 高度学習分析
+    adv_findings = [f for f in all_findings if "Advanced learning" in f.get("message", "")]
+    if adv_findings:
+        lines.append("## 🧪 高度学習分析")
+        lines.append("")
+        for f in adv_findings:
             for d in f.get("details", []):
                 lines.append(f"- {d}")
             lines.append("")
@@ -2074,6 +2085,9 @@ def main():
 
     print("[INFO] Newsletter 監査...")
     all_findings.extend(run_newsletter_audit())
+
+    print("[INFO] 高度学習分析...")
+    all_findings.extend(run_advanced_learning(products, all_findings))
 
     print("[INFO] 未実装タスク追跡...")
     all_findings.extend(generate_task_report())
