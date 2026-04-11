@@ -41,10 +41,23 @@ BUSINESS_PROFILE = {
         "Plush & Soft Toys", "Goods & Accessories",
     ],
     "core_keywords": [
-        "figure", "toy", "card", "game", "manga", "anime", "pokemon",
-        "dragon ball", "one piece", "naruto", "gundam", "ghibli",
-        "tamagotchi", "plush", "collectible", "japanese", "japan",
-        "pre-owned", "used", "vintage", "retro", "rare",
+        # 商品カテゴリ
+        "figure", "toy", "card", "game", "manga", "anime", "plush",
+        "collectible", "accessory", "goods", "book", "dvd", "blu-ray",
+        # 地域・状態
+        "japanese", "japan", "pre-owned", "used", "vintage", "retro", "rare", "limited",
+        # フランチャイズ
+        "pokemon", "dragon ball", "one piece", "naruto", "gundam", "ghibli",
+        "tamagotchi", "digimon", "beyblade", "jojo", "evangelion", "vocaloid",
+        "miku", "final fantasy", "sailor moon", "attack on titan",
+        "jujutsu kaisen", "my hero academia", "death note", "sylvanian",
+        "rilakkuma", "sanrio", "identity v", "power ranger", "sentai",
+        # ストア運用キーワード（提案が事業関連と判定されるべきもの）
+        "shopify", "ebay", "product", "price", "collection", "category",
+        "trust", "inspect", "condition", "shipped", "description",
+        "image", "photo", "cta", "blog", "article", "seo",
+        "design", "page", "store", "customer", "conversion",
+        "newsletter", "subscriber", "review", "shipping", "refund",
     ],
     "channels": ["shopify", "ebay", "blog", "instagram", "facebook", "youtube", "pinterest"],
     "trust_keywords": [

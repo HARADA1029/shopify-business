@@ -146,8 +146,19 @@ def score_deviation(message, details_text=""):
     score = 0
 
     # ジャンル外（コアキーワードなし）
-    core = ["figure", "toy", "card", "game", "manga", "anime", "pokemon", "plush",
-            "collectible", "japanese", "japan", "pre-owned", "vintage", "rare"]
+    core = [
+        "figure", "toy", "card", "game", "manga", "anime", "pokemon", "plush",
+        "collectible", "japanese", "japan", "pre-owned", "vintage", "rare", "limited",
+        "goods", "accessory", "book", "dvd", "beyblade", "gundam", "tamagotchi",
+        "jojo", "evangelion", "miku", "final fantasy", "naruto", "one piece",
+        "dragon ball", "ghibli", "jujutsu", "hero academia", "sailor moon",
+        "sentai", "power ranger", "sylvanian", "rilakkuma", "identity",
+        # ストア運用系（提案が事業関連と判定されるべき）
+        "shopify", "product", "price", "trust", "condition", "inspect",
+        "description", "image", "cta", "blog", "article", "collection",
+        "design", "page", "store", "shipping", "review", "newsletter",
+        "seo", "conversion", "category", "ebay", "customer",
+    ]
     if not any(kw in text for kw in core):
         score += 2
 
