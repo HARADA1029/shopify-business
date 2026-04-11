@@ -89,6 +89,14 @@ jobs:
           git diff --cached --quiet || git commit -m "Update daily inspection state files [auto]"
           git push || true
 
+      - name: Upload report artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-report-${{ github.run_number }}
+          path: ops/monitoring/reports/
+          retention-days: 90
+
       - name: Cleanup credentials
         if: always()
         run: rm -f .gcp_service_account.json .ebay_token.json .shopify_token.json .instagram_token.json
