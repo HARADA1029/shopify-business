@@ -29,6 +29,18 @@ jobs:
             echo "$GCP_KEY" > .gcp_service_account.json
           fi
 
+      - name: Setup API tokens
+        env:
+          SHOPIFY_ACCESS_TOKEN: ${{ secrets.SHOPIFY_ACCESS_TOKEN }}
+          EBAY_REFRESH_TOKEN: ${{ secrets.EBAY_REFRESH_TOKEN }}
+          INSTAGRAM_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_ACCESS_TOKEN }}
+          INSTAGRAM_PAGE_TOKEN: ${{ secrets.INSTAGRAM_PAGE_TOKEN }}
+          INSTAGRAM_USER_ID: ${{ secrets.INSTAGRAM_USER_ID }}
+        run: |
+          python -c "import json,os;t=os.environ.get('SHOPIFY_ACCESS_TOKEN','');json.dump({'access_token':t,'scope':''},open('.shopify_token.json','w')) if t else None"
+          python -c "import json,os;t=os.environ.get('EBAY_REFRESH_TOKEN','');json.dump({'access_token':'','refresh_token':t},open('.ebay_token.json','w')) if t else None"
+          python -c "import json,os;t=os.environ.get('INSTAGRAM_ACCESS_TOKEN','');u=os.environ.get('INSTAGRAM_USER_ID','');json.dump({'access_token':t,'page_access_token':os.environ.get('INSTAGRAM_PAGE_TOKEN',''),'ig_user_id':u,'page_id':''},open('.instagram_token.json','w')) if t else None"
+
       - name: Run daily inspection
         env:
           SHOPIFY_STORE: ${{ secrets.SHOPIFY_STORE }}
@@ -40,13 +52,15 @@ jobs:
           EBAY_APP_ID: ${{ secrets.EBAY_APP_ID }}
           EBAY_CERT_ID: ${{ secrets.EBAY_CERT_ID }}
           EBAY_REFRESH_TOKEN: ${{ secrets.EBAY_REFRESH_TOKEN }}
-        run: |
-          python -c "import json,os;t=os.environ.get('EBAY_REFRESH_TOKEN','');json.dump({'access_token':'','refresh_token':t},open('.ebay_token.json','w')) if t else None"
-          python ops/monitoring/daily_inspection.py
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+          PINTEREST_APP_ID: ${{ secrets.PINTEREST_APP_ID }}
+          PINTEREST_APP_SECRET: ${{ secrets.PINTEREST_APP_SECRET }}
+        run: python ops/monitoring/daily_inspection.py
 
       - name: Cleanup credentials
         if: always()
-        run: rm -f .gcp_service_account.json .ebay_token.json
+        run: rm -f .gcp_service_account.json .ebay_token.json .shopify_token.json .instagram_token.json
 
       - name: Upload report artifacts
         if: always()

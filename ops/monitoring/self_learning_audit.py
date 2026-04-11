@@ -42,7 +42,23 @@ def _load_json(filename):
 
 
 def _token_exists(filename):
-    return os.path.exists(os.path.join(PROJECT_ROOT, filename))
+    """トークンファイルの存在チェック（CI環境ではsecrets経由なのでファイル不要の場合あり）"""
+    if os.path.exists(os.path.join(PROJECT_ROOT, filename)):
+        return True
+    # GitHub Actions では setup_ci_credentials.py が動的生成する
+    if os.environ.get("GITHUB_ACTIONS"):
+        env_map = {
+            ".shopify_token.json": "SHOPIFY_ACCESS_TOKEN",
+            ".instagram_token.json": "INSTAGRAM_ACCESS_TOKEN",
+            ".ebay_token.json": "EBAY_APP_ID",
+            ".pinterest_token.json": "PINTEREST_APP_ID",
+            ".youtube_token.json": "YOUTUBE_CLIENT_ID",
+            ".tiktok_token.json": "TIKTOK_CLIENT_KEY",
+        }
+        env_var = env_map.get(filename, "")
+        if env_var and os.environ.get(env_var):
+            return True
+    return False
 
 
 def _days_since(date_str):

@@ -102,22 +102,36 @@ def _audit_api(all_findings):
 
     # トークンファイルチェック
     tokens = {
-        "Shopify": (".shopify_token.json", "store-setup", "critical"),
-        "eBay": (".ebay_token.json", "price-auditor", "high"),
-        "Instagram": (".instagram_token.json", "sns-manager", "medium"),
-        "Pinterest": (".pinterest_token.json", "sns-manager", "medium"),
-        "YouTube": (".youtube_token.json", "sns-manager", "low"),
-        "TikTok": (".tiktok_token.json", "sns-manager", "low"),
+        "Shopify": (".shopify_token.json", "store-setup", "critical", "SHOPIFY_ACCESS_TOKEN"),
+        "eBay": (".ebay_token.json", "price-auditor", "high", "EBAY_APP_ID"),
+        "Instagram": (".instagram_token.json", "sns-manager", "medium", "INSTAGRAM_ACCESS_TOKEN"),
+        "Pinterest": (".pinterest_token.json", "sns-manager", "medium", "PINTEREST_APP_ID"),
+        "YouTube": (".youtube_token.json", "sns-manager", "low", "YOUTUBE_CLIENT_ID"),
+        "TikTok": (".tiktok_token.json", "sns-manager", "low", "TIKTOK_CLIENT_KEY"),
     }
 
-    for name, (filename, agent, priority) in tokens.items():
-        if not _token_exists(filename):
+    is_ci = bool(os.environ.get("GITHUB_ACTIONS"))
+
+    for name, (filename, agent, priority, env_var) in tokens.items():
+        has_file = _token_exists(filename)
+        has_env = bool(os.environ.get(env_var))
+        # GitHub Actions ではsecretsから環境変数で供給されるのでファイル不要
+        if not has_file and not has_env and not is_ci:
             issues.append(_make_issue(
                 "api", "%s token missing" % name,
-                "%s not found" % filename,
+                "%s not found (local)" % filename,
                 "%s API calls will fail" % name,
                 "Token file not created or deleted",
                 agent, priority,
+            ))
+        elif not has_file and not has_env and is_ci:
+            # CI環境ではsecretが設定されていない場合のみ警告
+            issues.append(_make_issue(
+                "api", "%s credentials not in secrets" % name,
+                "Neither %s file nor %s env var found in CI" % (filename, env_var),
+                "%s API calls will fail in GitHub Actions" % name,
+                "Add %s to repository secrets" % env_var,
+                agent, "medium",  # CIでは medium に下げる（secretsの設定漏れ）
             ))
 
     # GCP credentials
