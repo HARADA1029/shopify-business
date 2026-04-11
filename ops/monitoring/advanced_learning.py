@@ -163,9 +163,34 @@ def evaluate_revenue_contribution(products):
         details.append("[%s] %d items, avg $%.0f, total $%.0f, high-value: %d" % (
             cat, d["count"], avg, d["total_price"], d["high_value"]))
 
-    # 利益重視の提案優先度
+    # カテゴリ別売上寄与ランキング（価格 × 商品数 × 記事カバレッジ）
+    blog_state = _load_json("blog_state.json")
+    article_cats = Counter()
+    if blog_state:
+        for a in blog_state.get("articles_generated", []):
+            article_cats[a.get("category", "")] += 1
+
     details.append("")
-    details.append("Priority: Focus proposals on categories with high avg price + sufficient inventory")
+    details.append("--- Category Revenue Potential Ranking ---")
+    ranked = []
+    for cat in sorted(cat_revenue):
+        d = cat_revenue[cat]
+        avg = d["total_price"] / max(d["count"], 1)
+        articles = article_cats.get(cat, 0)
+        # スコア = 平均単価 × 商品数 × (1 + 記事数×0.2)
+        score = avg * d["count"] * (1 + articles * 0.2)
+        ranked.append((cat, d["count"], avg, d["total_price"], d["high_value"], articles, score))
+
+    ranked.sort(key=lambda x: -x[6])
+    for cat, count, avg, total, hv, articles, score in ranked:
+        details.append("  [%.0f] %s: %d items, avg $%.0f, %d articles, %d high-value" % (score, cat, count, avg, articles, hv))
+
+    if ranked:
+        top = ranked[0]
+        bottom = ranked[-1]
+        details.append("")
+        details.append("Highest potential: %s (score %.0f) → prioritize proposals" % (top[0], top[6]))
+        details.append("Lowest potential: %s (score %.0f) → deprioritize or grow inventory" % (bottom[0], bottom[6]))
 
     return details
 

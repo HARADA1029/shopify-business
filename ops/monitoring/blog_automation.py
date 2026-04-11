@@ -1102,6 +1102,35 @@ def report_passed_article_performance():
             elif gap > 0:
                 details.append("  guide still leads — continue guide-first strategy")
 
+        # カテゴリ別の売上導線比較
+        cat_funnel = defaultdict(lambda: {"articles": 0, "pv": 0, "cta": 0, "ref": 0, "cart": 0})
+        for t in tracking_data:
+            # カテゴリを推定
+            gen = [a for a in state.get("articles_generated", []) if a.get("wp_post_id") == t.get("wp_post_id")]
+            cat = gen[0].get("category", "Other") if gen else "Other"
+            m = t.get("metrics", {})
+            cat_funnel[cat]["articles"] += 1
+            cat_funnel[cat]["pv"] += m.get("pageviews", 0)
+            cat_funnel[cat]["cta"] += m.get("cta_clicks", 0)
+            cat_funnel[cat]["ref"] += m.get("shopify_referrals", 0)
+            cat_funnel[cat]["cart"] += m.get("add_to_cart", 0)
+
+        if cat_funnel:
+            details.append("")
+            details.append("--- Category Sales Funnel Comparison ---")
+            for cat in sorted(cat_funnel, key=lambda c: -cat_funnel[c]["ref"]):
+                d = cat_funnel[cat]
+                cta_r = d["cta"] / max(d["pv"], 1) * 100
+                details.append("  [%s] %d articles: pv:%d → cta:%d(%.1f%%) → ref:%d → cart:%d" % (
+                    cat, d["articles"], d["pv"], d["cta"], cta_r, d["ref"], d["cart"]))
+
+            # G&A の重点表示
+            ga = cat_funnel.get("Goods & Accessories", {})
+            if ga.get("articles", 0) > 0:
+                details.append("  → G&A FOCUS: %d articles tracking, %d referrals so far" % (ga["articles"], ga.get("ref", 0)))
+            else:
+                details.append("  → G&A FOCUS: no articles tracked yet — pending blog publication")
+
         # guide型の7日推移表示
         try:
             with open(os.path.join(SCRIPT_DIR, "shared_state.json"), "r", encoding="utf-8") as f:
