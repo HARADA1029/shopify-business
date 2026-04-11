@@ -85,8 +85,26 @@
         "plush_active": 3
       },
       "metrics_after": {}
+    },
+    {
+      "id": "EXP-260411-006",
+      "target": "Goods & Accessories category focus",
+      "change": "Set as weekly focus, SNS posts, blog articles planned",
+      "start_date": "2026-04-11",
+      "end_date": "2026-04-25",
+      "period_days": 14,
+      "success_condition": "30+ views on G&A products or 1+ blog article published",
+      "source_agent": "catalog-migration-planner",
+      "status": "running",
+      "result": null,
+      "decision": null,
+      "metrics_before": {
+        "ga_active": 4,
+        "ga_articles": 0
+      },
+      "metrics_after": {}
     }
   ],
   "completed": [],
-  "last_updated": "2026-04-10"
+  "last_updated": "2026-04-11"
 }
