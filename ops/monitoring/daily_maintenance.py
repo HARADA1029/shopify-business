@@ -341,6 +341,7 @@ def _analyze_loss_patterns():
 
     # カテゴリ別分解（メッセージからカテゴリを推定）
     all_losses = no_reaction + reaction_only
+    cat_losses = Counter()  # 初期化（all_lossesが空でも参照可能に）
     if all_losses:
         cat_keywords = {
             "Trading Cards": ["card", "pokemon card", "tcg"],
