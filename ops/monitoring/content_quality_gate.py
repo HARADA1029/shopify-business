@@ -205,6 +205,17 @@ def audit_content_quality(wp_posts):
         for lq in low_quality[:5]:
             details.append("  [%d/8] ID:%d %s — fix: %s" % (lq["score"], lq["id"], lq["title"], ", ".join(lq["failed"][:3])))
 
+    # 比較拒否サマリ
+    if blog_state:
+        rejections = blog_state.get("rejections", [])
+        comparison_rejects = [r for r in rejections if any("comparison_weak" in i for i in r.get("issues", []))]
+        if comparison_rejects:
+            details.append("")
+            details.append("--- Comparison-Based Rejections ---")
+            details.append("Rejected by benchmark comparison: %d (all-time)" % len(comparison_rejects))
+            for cr in comparison_rejects[-3:]:
+                details.append("  [%s] %s" % (cr.get("date", "?"), cr.get("title", "?")[:40]))
+
     # === SNS品質サマリ ===
     sns_posted = None
     sns_path = os.path.join(SCRIPT_DIR, "sns_posted.json")

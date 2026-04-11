@@ -536,6 +536,47 @@ def quality_check(article_html, product):
     if h2_count < MIN_H2:
         issues.append("[few_h2] Too few H2 headings: %d (min %d)" % (h2_count, MIN_H2))
 
+    # === 競合・既存記事・勝ちパターン比較 ===
+    al = article_html.lower()
+    comparison = {"vs_human": 0, "vs_winner": 0, "vs_competitor": 0}
+
+    # 人間作成記事基準との比較 (avg 1336w, 19.2img, 7.1 H2)
+    baseline_path = os.path.join(PROJECT_ROOT, "ops", "monitoring", "blog_quality_baseline.json")
+    if os.path.exists(baseline_path):
+        try:
+            with open(baseline_path, "r", encoding="utf-8") as f:
+                baseline = json.load(f)
+            human = baseline.get("human_baseline", {})
+            min_w = human.get("min_words", 800)
+            min_img = human.get("min_images", 3)
+            min_h2 = human.get("min_h2", 3)
+            # スコア: 各項目クリアで+1
+            if word_count >= min_w: comparison["vs_human"] += 1
+            if img_count >= min_img: comparison["vs_human"] += 1
+            if h2_count >= min_h2: comparison["vs_human"] += 1
+            if has_cta: comparison["vs_human"] += 1
+        except (json.JSONDecodeError, IOError):
+            comparison["vs_human"] = 3  # baseline読めない場合はデフォルト通過
+
+    # 勝ちパターン比較 (guide型要素: チェックリスト, 価格ガイド, trust 3点)
+    has_checklist = "<ul" in al and "<li" in al
+    has_price_guide = any(kw in al for kw in ["price", "$", "cost", "value", "worth"])
+    has_trust_3 = sum(1 for kw in ["shipped from japan", "inspected", "condition"] if kw in al) >= 2
+    if has_checklist: comparison["vs_winner"] += 1
+    if has_price_guide: comparison["vs_winner"] += 1
+    if has_trust_3: comparison["vs_winner"] += 1
+
+    # 競合水準比較 (最低限: 800w + 構造 + CTA)
+    if word_count >= 800: comparison["vs_competitor"] += 1
+    if h2_count >= 3: comparison["vs_competitor"] += 1
+    if has_cta: comparison["vs_competitor"] += 1
+
+    total_comparison = sum(comparison.values())
+    # 比較スコア 6/10未満は追加警告
+    if total_comparison < 6:
+        issues.append("[comparison_weak] Below benchmark: human=%d/4, winner=%d/3, competitor=%d/3 (total %d/10, min 6)" % (
+            comparison["vs_human"], comparison["vs_winner"], comparison["vs_competitor"], total_comparison))
+
     return {
         "passed": len(issues) == 0,
         "word_count": word_count,
@@ -544,6 +585,8 @@ def quality_check(article_html, product):
         "has_cta": has_cta,
         "has_internal_links": has_internal_links,
         "has_category": has_category,
+        "comparison": comparison,
+        "comparison_total": total_comparison,
         "issues": issues,
     }
 
