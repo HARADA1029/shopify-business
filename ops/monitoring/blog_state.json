@@ -39,11 +39,39 @@
         ],
         "featured_media": 4894
       }
+    },
+    {
+      "date": "2026-04-11",
+      "handle": "air-gear-1-37-complete-set-manga-book-itsuki-minami-ito-ogure-2003-kodansha",
+      "title": "Air Gear 1-37 Complete Set Manga Book Itsuki Minami Ito Ogure 2003 Kodansha",
+      "category": "Media & Books",
+      "wp_post_id": 4899,
+      "wp_link": "https://hd-bodyscience.com/air-gear-1-37-complete-set-manga-book-itsuki-minami-ito-ogure-2003-kodansha/4899/",
+      "template": "standard",
+      "status": "published",
+      "quality": {
+        "words": 2304,
+        "images": 4,
+        "h2": 6,
+        "passed": true
+      },
+      "settings": {
+        "categories": [
+          497
+        ],
+        "tags": [
+          490,
+          492,
+          42,
+          498
+        ],
+        "featured_media": 4898
+      }
     }
   ],
   "experiments": [],
   "template_scores": {},
-  "_last_updated": "2026-04-10",
+  "_last_updated": "2026-04-11",
   "analysis_history": [
     {
       "date": "2026-04-08",

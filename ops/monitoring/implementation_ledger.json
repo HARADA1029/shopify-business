@@ -157,14 +157,36 @@
     },
     "product_descriptions": {
       "name": "Product description quality",
-      "status": "completed_improvement_phase",
+      "status": "monitoring",
       "target": "All active Shopify products",
       "implemented_date": "2026-04-09",
-      "updated_date": "2026-04-10",
+      "updated_date": "2026-04-11",
       "verification": "api_response",
-      "verification_detail": "All 58 products have 50+ words. Top 12 high-value products expanded to 191-273w. Some Gemini 503 skipped.",
+      "verification_detail": "All 58 products have 100+ words. CRO score 7/8+ for all products. Alt text 100%. Trust 100%.",
       "agent": "store-setup",
-      "notes": "3 high-value products still need expansion (Gemini 503 retry needed)."
+      "notes": "MAINTENANCE MODE: page_improvement near-complete. Monitor for regressions only."
+    },
+    "dtc_transfer": {
+      "name": "eBay-to-DTC page optimization",
+      "status": "in_progress",
+      "target": "All active Shopify products",
+      "implemented_date": "2026-04-11",
+      "updated_date": "2026-04-11",
+      "verification": "api_response",
+      "verification_detail": "DTC audit: 46 issues across 3 check types. eBay language removal, collector story, brand identity needed.",
+      "agent": "catalog-migration-planner",
+      "notes": "NEW PRIORITY: Replace eBay expressions with DTC-appropriate content."
+    },
+    "category_gap_focus": {
+      "name": "Category gap strengthening",
+      "status": "in_progress",
+      "target": "Goods & Accessories (current focus)",
+      "implemented_date": "2026-04-11",
+      "updated_date": "2026-04-11",
+      "verification": "api_response",
+      "verification_detail": "G&A: 4 products, 0 blog articles. Weekly focus set. SNS posted.",
+      "agent": "catalog-migration-planner",
+      "notes": "NEW PRIORITY: Blog article + more products + collection traffic."
     },
     "blog_auto_post": {
       "name": "Blog auto post with quality control",

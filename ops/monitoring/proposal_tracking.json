@@ -293,14 +293,28 @@
       "result": "success",
       "result_date": "2026-04-11",
       "next_action": "Shift focus to category_gap and DTC transfer improvements"
+    },
+    {
+      "id": "P-260411-blog",
+      "message_hash": "e9dcdb908d",
+      "date": "2026-04-11",
+      "agent": "blog-analyst",
+      "type": "article_theme",
+      "message": "Blog published (quality passed): Air Gear 1-37 Complete Set Manga Book It (2304w, 4img)",
+      "score": 18,
+      "status": "adopted",
+      "adopted_date": "2026-04-11",
+      "result": "success",
+      "result_date": "2026-04-11",
+      "next_action": "Track post-publish performance via GA4/UTM"
     }
   ],
   "summary": {
-    "total": 21,
-    "adopted": 19,
+    "total": 22,
+    "adopted": 20,
     "rejected": 0,
     "pending": 2,
-    "success": 18,
+    "success": 19,
     "failed": 0,
     "accuracy_by_type": {
       "page_improvement": {
