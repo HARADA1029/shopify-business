@@ -207,16 +207,14 @@ def suggest_sns_posts(products, wp_posts):
         details = [
             "Category: %s (today's rotation)" % today_category,
             "Product: %s" % title,
-            "Pinterest: Pin to '%s' board" % board_map.get(today_category, today_category),
-            "Instagram: Product showcase image",
-            "Link: %s?utm_source=pinterest&utm_medium=social&utm_campaign=daily-pin&utm_content=%s" % (shopify_link, handle),
+            "Platforms: Instagram + Facebook (auto-post at JST 20:00)",
+            "Trust: Pre-owned, inspected, shipped from Japan",
+            "Link: %s?utm_source=sns&utm_medium=social&utm_campaign=daily-post" % shopify_link,
         ]
-        if image_url:
-            details.append("Image: %s" % image_url[:80])
 
         findings.append({
             "type": "action", "agent": "sns-manager",
-            "message": "SNS post idea: %s" % title,
+            "message": "SNS post: %s [%s] — inspected, shipped from Japan" % (title, today_category),
             "details": details,
         })
 
