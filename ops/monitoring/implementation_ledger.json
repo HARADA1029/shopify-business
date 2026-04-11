@@ -168,14 +168,14 @@
     },
     "dtc_transfer": {
       "name": "eBay-to-DTC page optimization",
-      "status": "in_progress",
+      "status": "monitoring",
       "target": "All active Shopify products",
       "implemented_date": "2026-04-11",
       "updated_date": "2026-04-11",
       "verification": "api_response",
-      "verification_detail": "DTC audit: 46 issues across 3 check types. eBay language removal, collector story, brand identity needed.",
+      "verification_detail": "All 58 products pass DTC 3-check. 0 issues remaining.",
       "agent": "catalog-migration-planner",
-      "notes": "NEW PRIORITY: Replace eBay expressions with DTC-appropriate content."
+      "notes": "MAINTENANCE MODE: monitor for new products only."
     },
     "category_gap_focus": {
       "name": "Category gap strengthening",

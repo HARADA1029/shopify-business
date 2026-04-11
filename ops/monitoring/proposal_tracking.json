@@ -307,14 +307,28 @@
       "result": "success",
       "result_date": "2026-04-11",
       "next_action": "Track post-publish performance via GA4/UTM"
+    },
+    {
+      "id": "P-260411-dtc",
+      "message_hash": "dtc01",
+      "date": "2026-04-11",
+      "agent": "catalog-migration-planner",
+      "type": "page_improvement",
+      "message": "DTC transfer: all 58 products pass 3 checks (0 issues remaining)",
+      "score": 20,
+      "status": "adopted",
+      "adopted_date": "2026-04-11",
+      "result": "success",
+      "result_date": "2026-04-11",
+      "next_action": "Monitor for new products; shift to category_gap as primary"
     }
   ],
   "summary": {
-    "total": 22,
-    "adopted": 20,
+    "total": 23,
+    "adopted": 21,
     "rejected": 0,
     "pending": 2,
-    "success": 19,
+    "success": 20,
     "failed": 0,
     "accuracy_by_type": {
       "page_improvement": {
