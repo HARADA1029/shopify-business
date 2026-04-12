@@ -90,6 +90,7 @@ jobs:
             ops/monitoring/ui_improvement_log.json \
             ops/monitoring/content_quality_log.json \
             ops/monitoring/advanced_learning_state.json \
+            ops/monitoring/agent_optimization_state.json \
             ops/monitoring/reports/ \
             2>/dev/null || true
           git diff --cached --quiet || git commit -m "Update daily inspection state files [auto]"
