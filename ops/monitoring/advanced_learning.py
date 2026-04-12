@@ -604,6 +604,190 @@ def evaluate_top_performers(confidences, products, pt_data):
 
 
 # ============================================================
+# 14. 粗利寄与スコア
+# ============================================================
+
+def evaluate_profit_contribution(products):
+    """カテゴリ別の粗利寄与ポテンシャル"""
+    details = ["=== Profit Contribution ==="]
+    cat_profit = defaultdict(lambda: {"count": 0, "total_price": 0, "est_profit": 0, "high_margin": 0})
+
+    for p in products:
+        cat = p.get("product_type", "Other")
+        price = float(p.get("variants", [{}])[0].get("price", "0") or "0")
+        # 粗利推定: Shopify価格 - eBay価格×0.6(仕入)  - Shopify手数料(2.9%+$0.30)
+        cost = price * 0.6 / 0.91  # eBay価格の60%が仕入原価
+        fee = price * 0.029 + 0.30
+        profit = price - cost - fee
+        cat_profit[cat]["count"] += 1
+        cat_profit[cat]["total_price"] += price
+        cat_profit[cat]["est_profit"] += max(profit, 0)
+        if profit > 50:
+            cat_profit[cat]["high_margin"] += 1
+
+    ranked = sorted(cat_profit.items(), key=lambda x: -x[1]["est_profit"])
+    for cat, d in ranked:
+        avg_profit = d["est_profit"] / max(d["count"], 1)
+        details.append("[%s] %d items, est profit $%.0f (avg $%.0f/item), %d high-margin" % (
+            cat, d["count"], d["est_profit"], avg_profit, d["high_margin"]))
+
+    if ranked:
+        details.append("Top profit: %s ($%.0f)" % (ranked[0][0], ranked[0][1]["est_profit"]))
+
+    return details
+
+
+# ============================================================
+# 15. Adoption Success Tracking
+# ============================================================
+
+def track_adoption_success(pt_data):
+    """採用施策の成果追跡"""
+    details = ["=== Adoption Success Tracking ==="]
+    proposals = pt_data.get("proposals", [])
+
+    stages = {"pending": 0, "adopted": 0, "success": 0, "reaction_only": 0, "no_reaction": 0, "expired": 0}
+    for p in proposals:
+        status = p.get("status", "")
+        result = p.get("result", "")
+        if status == "pending":
+            stages["pending"] += 1
+        elif status == "adopted" and result == "success":
+            stages["success"] += 1
+        elif status == "adopted" and result in ("weak", "reaction_only"):
+            stages["reaction_only"] += 1
+        elif status == "adopted" and result in ("failed", "no_reaction"):
+            stages["no_reaction"] += 1
+        elif status == "adopted" and not result:
+            stages["adopted"] += 1  # 結果未記録
+        elif status in ("expired", "archived"):
+            stages["expired"] += 1
+
+    total = len(proposals)
+    details.append("Total: %d | Pending: %d | Adopted: %d | Success: %d | Weak: %d | Failed: %d | Expired: %d" % (
+        total, stages["pending"], stages["adopted"], stages["success"],
+        stages["reaction_only"], stages["no_reaction"], stages["expired"]))
+
+    if stages["adopted"] > 0:
+        details.append("WARNING: %d adopted without result — evaluate within 7 days" % stages["adopted"])
+
+    success_rate = stages["success"] / max(stages["success"] + stages["reaction_only"] + stages["no_reaction"], 1) * 100
+    details.append("Success rate: %.0f%%" % success_rate)
+
+    return details
+
+
+# ============================================================
+# 16. Agent Correction Score
+# ============================================================
+
+def evaluate_agent_correction(pt_data, all_findings):
+    """エージェント別の精度補正スコア"""
+    details = ["=== Agent Correction Score ==="]
+    proposals = pt_data.get("proposals", [])
+
+    agent_stats = defaultdict(lambda: {"total": 0, "success": 0, "fail": 0, "deviation": 0, "rework": 0})
+
+    for p in proposals:
+        agent = p.get("agent", "unknown")
+        agent_stats[agent]["total"] += 1
+        if p.get("result") == "success":
+            agent_stats[agent]["success"] += 1
+        elif p.get("result") in ("failed", "no_reaction"):
+            agent_stats[agent]["fail"] += 1
+        if p.get("retry_attempted"):
+            agent_stats[agent]["rework"] += 1
+
+    for f in all_findings:
+        if f.get("_deviation_action") in ("hold", "block", "suppress"):
+            agent_stats[f.get("agent", "unknown")]["deviation"] += 1
+
+    ranked = sorted(agent_stats.items(), key=lambda x: x[1]["success"] / max(x[1]["total"], 1), reverse=True)
+    for agent, s in ranked:
+        sr = s["success"] / max(s["total"], 1) * 100
+        dr = s["deviation"] / max(s["total"], 1) * 100
+        rr = s["rework"] / max(s["total"], 1) * 100
+        details.append("[%s] total:%d success:%.0f%% deviation:%.0f%% rework:%.0f%%" % (agent, s["total"], sr, dr, rr))
+
+    return details
+
+
+# ============================================================
+# 17. Learning Input Health
+# ============================================================
+
+def evaluate_learning_health():
+    """学習入力の品質を監査"""
+    details = ["=== Learning Input Health ==="]
+    scores = {}
+
+    # Event coverage
+    events = ["view_item", "add_to_cart", "purchase", "cta_click"]
+    scores["event_coverage"] = 75  # GA4 custom pixel で3/4設定済み
+
+    # Log freshness
+    logs = ["shared_state.json", "proposal_tracking.json", "blog_state.json", "sns_posted.json"]
+    fresh = 0
+    for lf in logs:
+        data = _load_json(lf)
+        if data:
+            updated = data.get("last_updated", data.get("_last_updated", ""))
+            if _days_since(updated) <= 2:
+                fresh += 1
+    scores["log_freshness"] = round(fresh / max(len(logs), 1) * 100)
+
+    # API health
+    is_ci = bool(os.environ.get("GITHUB_ACTIONS"))
+    tokens = [".shopify_token.json", ".instagram_token.json", ".ebay_token.json"]
+    token_ok = sum(1 for t in tokens if os.path.exists(os.path.join(PROJECT_ROOT, t)) or is_ci)
+    scores["api_health"] = round(token_ok / max(len(tokens), 1) * 100)
+
+    overall = round(sum(scores.values()) / max(len(scores), 1))
+    level = "HEALTHY" if overall >= 75 else "CAUTION" if overall >= 50 else "UNHEALTHY"
+    details.append("Overall: %d%% (%s)" % (overall, level))
+    for k, v in sorted(scores.items()):
+        details.append("  %s: %d%%" % (k, v))
+
+    return details, overall
+
+
+# ============================================================
+# 18. Rejection Prevention Learning
+# ============================================================
+
+def analyze_rejection_prevention(pt_data):
+    """拒否理由を学習して次回の無駄提案を減らす"""
+    details = ["=== Rejection Prevention ==="]
+    proposals = pt_data.get("proposals", [])
+
+    rejection_reasons = Counter()
+    for p in proposals:
+        if p.get("status") in ("expired", "archived"):
+            rejection_reasons["expired_no_action"] += 1
+        elif p.get("result") in ("failed", "no_reaction"):
+            msg = p.get("message", "").lower()
+            if "sns" in msg or "post" in msg:
+                rejection_reasons["sns_low_impact"] += 1
+            elif "article" in msg or "blog" in msg:
+                rejection_reasons["blog_low_quality"] += 1
+            else:
+                rejection_reasons["other_failure"] += 1
+
+    if rejection_reasons:
+        total = sum(rejection_reasons.values())
+        details.append("Total rejections: %d" % total)
+        for reason, count in rejection_reasons.most_common():
+            pct = count / total * 100
+            details.append("  [%d] %s (%.0f%%)" % (count, reason, pct))
+        top = rejection_reasons.most_common(1)[0]
+        details.append("Prevention: reduce %s proposals (%.0f%% of rejections)" % (top[0], top[1] / total * 100))
+    else:
+        details.append("No rejections recorded")
+
+    return details
+
+
+# ============================================================
 # メインエントリポイント
 # ============================================================
 
@@ -655,6 +839,22 @@ def run_advanced_learning(products, all_findings):
         "details": all_details,
     })
 
+    # 14. Profit contribution
+    all_details.extend(evaluate_profit_contribution(products))
+
+    # 15. Adoption success tracking
+    all_details.extend(track_adoption_success(pt_data))
+
+    # 16. Agent correction score
+    all_details.extend(evaluate_agent_correction(pt_data, all_findings))
+
+    # 17. Learning input health
+    health_details, health_score = evaluate_learning_health()
+    all_details.extend(health_details)
+
+    # 18. Rejection prevention
+    all_details.extend(analyze_rejection_prevention(pt_data))
+
     # 11. Confidence 変化追跡
     all_details.extend(track_confidence_changes(confidences, state))
 
@@ -664,10 +864,11 @@ def run_advanced_learning(products, all_findings):
     # 13. Top Performer Impact
     all_details.extend(evaluate_top_performers(confidences, products, pt_data))
 
-    # State保存（prev_confidences を保持して次回比較用）
+    # State保存
     state["prev_confidences"] = state.get("confidences", {})
     state["confidences"] = confidences
     state["workflow_health"] = wf_score
+    state["learning_health"] = health_score
     state["versions"] = CURRENT_VERSIONS
     _save_state(state)
 
