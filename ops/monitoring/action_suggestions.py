@@ -1035,8 +1035,7 @@ def generate_all_suggestions(products, wp_posts, wp_categories):
     # PROHIBIT対象を除外、SUPPRESS対象のスコアを減点
     prohibited, suppressed, held = _get_prohibited_types()
 
-    # sns_post は低confidenceのため基準見直し: 自動的にHOLDに追加
-    # confidence 40未満かつ成功実績なしの場合
+    # 低confidence と expired_no_action の多いタイプを自動HOLD
     adv_state_path = os.path.join(SCRIPT_DIR, "advanced_learning_state.json")
     if os.path.exists(adv_state_path):
         try:
@@ -1048,6 +1047,14 @@ def generate_all_suggestions(products, wp_posts, wp_categories):
                     held.add(ptype)
         except (json.JSONDecodeError, IOError):
             pass
+
+    # expired_no_action が多いタイプの発生を抑制
+    if tracking:
+        from collections import Counter as _C
+        expired_types = _C(p.get("type", "") for p in tracking.get("proposals", []) if p.get("status") in ("expired", "archived"))
+        for etype, ecount in expired_types.items():
+            if ecount >= 3 and etype not in prohibited and etype not in suppressed:
+                suppressed.add(etype)  # 3回以上expired → SUPPRESS
 
     before_count = len(all_findings)
 
@@ -1106,8 +1113,13 @@ def generate_all_suggestions(products, wp_posts, wp_categories):
         if high_revenue_cats:
             for hrc in high_revenue_cats[:3]:
                 if hrc.lower() in msg_lower:
-                    f["_score"] = int(f.get("_score", 0) * 1.3)  # 30%ブースト
+                    f["_score"] = int(f.get("_score", 0) * 1.3)
                     break
+
+        # 高粗利カテゴリをさらにブースト（利益重視）
+        high_profit_cats = shared_state.get("high_profit_categories", [])
+        if high_profit_cats and high_profit_cats[0].lower() in msg_lower:
+            f["_score"] = int(f.get("_score", 0) * 1.2)  # トップ粗利カテゴリは追加20%
 
         # カテゴリ失敗重み反映
         cat_weights = shared_state.get("category_failure_weights", {})
