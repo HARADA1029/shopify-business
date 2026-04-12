@@ -226,6 +226,133 @@ def analyze_improvement_results(state):
 
 
 # ============================================================
+# 6. New Element Test Log
+# ============================================================
+
+def track_new_elements(state, auto_candidates, proposal_candidates):
+    """新規要素の導入テストを追跡"""
+    details = ["=== New Element Test Log ==="]
+
+    elements = state.get("element_tests", [])
+
+    # 新しい候補を登録（未登録のもの）
+    existing = set(e.get("name", "") for e in elements)
+    for c in auto_candidates + proposal_candidates:
+        if c["name"] not in existing:
+            elements.append({
+                "name": c["name"],
+                "desc": c["desc"],
+                "source": "competitor_research",
+                "target": "pending",
+                "implemented": None,
+                "implemented_date": None,
+                "result": None,
+                "result_date": None,
+                "expansion": None,
+                "status": "identified",
+            })
+
+    # ステータス集計
+    identified = sum(1 for e in elements if e.get("status") == "identified")
+    testing = sum(1 for e in elements if e.get("status") == "testing")
+    success = sum(1 for e in elements if e.get("result") == "success")
+    failed = sum(1 for e in elements if e.get("result") == "failed")
+
+    details.append("Identified: %d | Testing: %d | Success: %d | Failed: %d" % (identified, testing, success, failed))
+
+    # 直近のテスト結果
+    recent = [e for e in elements if e.get("result_date")]
+    recent.sort(key=lambda x: x.get("result_date", ""), reverse=True)
+    if recent:
+        details.append("")
+        details.append("Recent results:")
+        for e in recent[:5]:
+            details.append("  [%s] %s — %s (%s)" % (
+                e.get("result", "?").upper(), e["name"], e.get("desc", "")[:40], e.get("result_date", "?")))
+
+    # 横展開候補
+    expand = [e for e in elements if e.get("result") == "success" and not e.get("expansion")]
+    if expand:
+        details.append("")
+        details.append("Expansion candidates:")
+        for e in expand:
+            details.append("  [EXPAND] %s → apply to other categories/channels" % e["name"])
+
+    state["element_tests"] = elements
+    return details
+
+
+# ============================================================
+# 7. Gap → Fix → Result Tracker
+# ============================================================
+
+def track_gap_fix_result(state):
+    """不足→修正→結果を1本で追跡"""
+    details = ["=== Gap → Fix → Result ==="]
+
+    elements = state.get("element_tests", [])
+    if not elements:
+        details.append("No elements tracked yet")
+        return details
+
+    for e in elements:
+        status = e.get("status", "identified")
+        name = e.get("name", "?")
+
+        if status == "identified":
+            details.append("[GAP] %s — found but not yet implemented" % name)
+        elif status == "testing":
+            details.append("[FIX] %s — implemented %s, awaiting results" % (name, e.get("implemented_date", "?")))
+        elif e.get("result") == "success":
+            details.append("[SUCCESS] %s — improved, expansion: %s" % (name, e.get("expansion", "pending")))
+        elif e.get("result") == "weak":
+            details.append("[WEAK] %s — partial improvement, re-adjust needed" % name)
+        elif e.get("result") == "failed":
+            details.append("[FAILED] %s — no improvement, consider stopping" % name)
+
+    return details
+
+
+# ============================================================
+# 8. Expansion Decision
+# ============================================================
+
+def evaluate_expansion(state):
+    """成功要素の横展開判断"""
+    details = ["=== Expansion Decision ==="]
+
+    elements = state.get("element_tests", [])
+    decisions = {
+        "expand_category": [],
+        "expand_channel": [],
+        "continue_local": [],
+        "stop": [],
+        "re_test": [],
+    }
+
+    for e in elements:
+        result = e.get("result")
+        if result == "success":
+            if not e.get("expansion"):
+                decisions["expand_category"].append(e["name"])
+        elif result == "weak":
+            decisions["re_test"].append(e["name"])
+        elif result == "failed":
+            decisions["stop"].append(e["name"])
+
+    if decisions["expand_category"]:
+        details.append("Expand to other categories: %s" % ", ".join(decisions["expand_category"]))
+    if decisions["re_test"]:
+        details.append("Re-test with adjustments: %s" % ", ".join(decisions["re_test"]))
+    if decisions["stop"]:
+        details.append("Stop (no impact): %s" % ", ".join(decisions["stop"]))
+    if not any(decisions.values()):
+        details.append("No decisions pending — elements still in testing")
+
+    return details
+
+
+# ============================================================
 # メインエントリポイント
 # ============================================================
 
@@ -249,6 +376,15 @@ def run_strategic_pdca(products, wp_posts):
 
     # 5. 結果分析
     all_details.extend(analyze_improvement_results(state))
+
+    # 6. New Element Test Log
+    all_details.extend(track_new_elements(state, auto_candidates, proposal_candidates))
+
+    # 7. Gap → Fix → Result
+    all_details.extend(track_gap_fix_result(state))
+
+    # 8. Expansion Decision
+    all_details.extend(evaluate_expansion(state))
 
     # リサーチ履歴を保存
     state["research_history"].append({
