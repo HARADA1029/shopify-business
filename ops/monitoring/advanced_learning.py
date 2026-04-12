@@ -727,10 +727,10 @@ def evaluate_learning_health():
         "add_to_cart": True,          # GA4 Custom Pixel
         "purchase": True,             # GA4 Custom Pixel
         "cta_click": True,            # UTM tracking (utm_medium=article)
-        "internal_link_click": False,  # 未実装: hd-bodyscience.com内のリンククリック
+        "internal_link_click": True,  # UTM: 内部リンクにutm_medium=internal付与済み
         "blog_to_shopify": True,      # UTM: utm_source=hd-bodyscience
         "sns_to_shopify": True,       # UTM: utm_source=instagram/facebook/pinterest
-        "ui_improvement_log": False,   # 未実装: UI変更の専用ログ
+        "ui_improvement_log": True,   # ui_improvement_log.json で記録
     }
     configured = sum(events_configured.values())
     total_events = len(events_configured)
@@ -761,14 +761,33 @@ def evaluate_learning_health():
     # Attribution completeness (UTMパラメータの一貫性)
     scores["attribution"] = 85  # UTM設定済み、GA4連携済み、一部クロスドメイン未検証
 
-    # Workflow success rate (直近の成功率)
+    # Workflow success rate (直近の成功率 + 失敗内訳)
     safety_log = _load_json("safety_audit_log.json")
     if safety_log and safety_log.get("audits"):
         recent_audits = safety_log["audits"][-7:]
         healthy = sum(1 for a in recent_audits if a.get("status") in ("SAFE", "CAUTION"))
         scores["workflow_success"] = round(healthy / max(len(recent_audits), 1) * 100)
+
+        # 失敗内訳
+        failed = [a for a in recent_audits if a.get("status") not in ("SAFE", "CAUTION")]
+        if failed:
+            details.append("  Workflow failures (7d): %d" % len(failed))
+            for fa in failed:
+                triggers = fa.get("triggers", 0)
+                effects = fa.get("side_effects", 0)
+                details.append("    [%s] status=%s triggers=%d side_effects=%d" % (
+                    fa.get("date", "?"), fa.get("status", "?"), triggers, effects))
     else:
         scores["workflow_success"] = 50
+
+    # Maintenance log からも失敗パターンを取得
+    maint_log = _load_json("maintenance_log.json")
+    if maint_log and maint_log.get("runs"):
+        recent_maint = maint_log["runs"][-7:]
+        maint_issues = sum(r.get("issues", 0) for r in recent_maint)
+        maint_fixes = sum(r.get("fixes", 0) for r in recent_maint)
+        if maint_issues > 0:
+            details.append("  Maintenance (7d): %d issues, %d auto-fixes" % (maint_issues, maint_fixes))
 
     overall = round(sum(scores.values()) / max(len(scores), 1))
     level = "HEALTHY" if overall >= 80 else "CAUTION" if overall >= 60 else "UNHEALTHY"

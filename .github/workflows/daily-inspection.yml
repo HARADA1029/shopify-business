@@ -87,6 +87,9 @@ jobs:
             ops/monitoring/product_comparison_cache.json \
             ops/monitoring/ebay_sales_cache.json \
             ops/monitoring/competitive_cache.json \
+            ops/monitoring/ui_improvement_log.json \
+            ops/monitoring/content_quality_log.json \
+            ops/monitoring/advanced_learning_state.json \
             ops/monitoring/reports/ \
             2>/dev/null || true
           git diff --cached --quiet || git commit -m "Update daily inspection state files [auto]"

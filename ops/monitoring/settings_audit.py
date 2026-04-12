@@ -22,13 +22,24 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
 
 
-def _check_url(url, timeout=10):
-    """URL にアクセスできるか確認"""
-    try:
-        resp = requests.get(url, headers={"User-Agent": "HD-Toys-Audit/1.0"}, timeout=timeout)
-        return resp.status_code
-    except Exception:
-        return 0
+def _check_url(url, timeout=10, retries=2):
+    """URL にアクセスできるか確認（リトライ付き）"""
+    import time as _time
+    for attempt in range(retries + 1):
+        try:
+            resp = requests.get(url, headers={"User-Agent": "HD-Toys-Audit/1.0"}, timeout=timeout)
+            if resp.status_code == 200 or attempt == retries:
+                return resp.status_code
+            _time.sleep(3)
+        except requests.exceptions.Timeout:
+            if attempt == retries:
+                return -1  # timeout
+            _time.sleep(3)
+        except Exception:
+            if attempt == retries:
+                return 0
+            _time.sleep(3)
+    return 0
 
 
 def audit_shopify_settings(products):

@@ -1,0 +1,48 @@
+{
+  "_comment": "UI/UX改善の専用ログ。デザイン変更・CTA変更・trust block追加等を記録する。",
+  "improvements": [
+    {
+      "date": "2026-04-08",
+      "type": "trust_block",
+      "target": "All 58 products",
+      "change": "Added About This Item trust block",
+      "agent": "store-setup"
+    },
+    {
+      "date": "2026-04-09",
+      "type": "product_description",
+      "target": "13 products",
+      "change": "Expanded thin descriptions with trust/series context",
+      "agent": "store-setup"
+    },
+    {
+      "date": "2026-04-10",
+      "type": "cta_template",
+      "target": "Blog CTA",
+      "change": "Added trust 3-point to CTA + mini CTA mid-article",
+      "agent": "content-strategist"
+    },
+    {
+      "date": "2026-04-11",
+      "type": "featured_image",
+      "target": "All auto-generated articles",
+      "change": "Resize to 500x400px",
+      "agent": "blog-analyst"
+    },
+    {
+      "date": "2026-04-11",
+      "type": "page_content",
+      "target": "About Us + Contact pages",
+      "change": "Expanded About Us to 250w, Contact with email/SNS/policies",
+      "agent": "store-setup"
+    },
+    {
+      "date": "2026-04-11",
+      "type": "sidebar",
+      "target": "WordPress sidebar",
+      "change": "Added Shopify SNS link buttons",
+      "agent": "store-setup"
+    }
+  ],
+  "last_updated": "2026-04-12"
+}
