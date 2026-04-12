@@ -1061,6 +1061,29 @@ def generate_all_suggestions(products, wp_posts, wp_categories):
     if prohibited:
         all_findings = [f for f in all_findings if _classify_proposal_type(f.get("message", ""), f.get("agent", "")) not in prohibited]
 
+    # === 低fit提案の事前予防フィルタ ===
+    pre_filter_count = len(all_findings)
+    filtered_pre = []
+    for f in all_findings:
+        msg_lower = f.get("message", "").lower()
+        # genre miss: コアキーワードが全くない提案を除外
+        core_kw = ["figure", "toy", "card", "game", "manga", "anime", "pokemon", "plush",
+                    "collectible", "japan", "shopify", "product", "price", "trust",
+                    "blog", "article", "design", "collection", "category"]
+        has_core = any(kw in msg_lower for kw in core_kw)
+        # sales push: 押し売り文言がある提案を除外
+        has_push = any(kw in msg_lower for kw in ["buy now", "limited time", "hurry", "act now", "flash sale"])
+
+        if not has_core:
+            continue  # genre miss → 生成しない
+        if has_push:
+            continue  # sales push → 生成しない
+        filtered_pre.append(f)
+
+    pre_filtered = pre_filter_count - len(filtered_pre)
+    if pre_filtered > 0:
+        all_findings = filtered_pre
+
     # Expired-then-reproposed conflict 防止:
     # 最近expiredになったタイプ+メッセージと同一内容の提案を除外
     tracking = _load_proposal_tracking()

@@ -819,8 +819,20 @@ def run_daily_maintenance():
     # 自動補強
     reinforced = _auto_reinforce(all_issues)
 
-    # expired_no_action のクリーンアップ
+    # adopted without result の自動評価（7日以上経過したら自動判定）
     pt = _load_json("proposal_tracking.json")
+    if pt:
+        for p in pt.get("proposals", []):
+            if p.get("status") == "adopted" and not p.get("result") and p.get("adopted_date"):
+                days = (NOW.replace(tzinfo=None) - datetime.strptime(p["adopted_date"], "%Y-%m-%d")).days if p.get("adopted_date") else 0
+                if days >= 7:
+                    # 7日経過で結果なし → pending_review として記録
+                    p["result"] = "pending_review"
+                    p["result_date"] = NOW.strftime("%Y-%m-%d")
+                    p["next_action"] = "Auto-set: needs manual evaluation"
+                    all_fixes.append("Auto-evaluated: %s → pending_review (%dd without result)" % (p.get("message", "")[:40], days))
+
+    # expired_no_action のクリーンアップ
     if pt:
         proposals = pt.get("proposals", [])
         cleaned = 0

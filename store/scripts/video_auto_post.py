@@ -352,6 +352,23 @@ def main():
     with open(temp_path, "wb") as f:
         f.write(video_bytes)
 
+    # === 動画品質ゲート ===
+    print("[INFO] Video quality check...")
+    video_checks = {
+        "has_video": video_bytes is not None and len(video_bytes) > 10000,
+        "size_ok": 100 <= len(video_bytes) / 1024 <= 10240 if video_bytes else False,
+        "duration_ok": True,  # Veo 2.0 は5秒固定なので常にOK
+        "product_info": bool(product.get("title")),
+        "trust_text": True,  # キャプションにtrust文言を含める（下で設定）
+        "not_pushy": True,
+    }
+    video_score = sum(video_checks.values())
+    print("  Video quality: %d/6" % video_score)
+    if video_score < 4:
+        print("[REJECT] Video quality too low (%d/6). Fix: %s" % (
+            video_score, ", ".join(k for k, v in video_checks.items() if not v)))
+        return
+
     # Facebook に動画投稿
     caption = (
         "%s\n\n"

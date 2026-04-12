@@ -71,12 +71,19 @@ def audit_shopify_settings(products):
     refund_status = _check_url(store_url + "/policies/refund-policy")
     privacy_status = _check_url(store_url + "/policies/privacy-policy")
 
-    if about_status != 200:
-        issues.append("About Us page: HTTP %d" % about_status)
-    if shipping_status != 200:
-        recommendations.append("Shipping policy page not accessible")
-    if refund_status != 200:
-        recommendations.append("Refund policy page not accessible")
+    # ページアクセス判定（一時失敗 vs 恒常失敗を切り分け）
+    for page_name, status in [("About Us", about_status), ("Shipping", shipping_status), ("Refund", refund_status)]:
+        if status == 200:
+            continue
+        elif status in (0, -1):
+            # 接続タイムアウト → 一時的なネットワーク問題
+            recommendations.append("%s page: connection timeout (temporary — server may be slow)" % page_name)
+        elif status == 403:
+            issues.append("%s page: HTTP 403 (permission issue — check page visibility settings)" % page_name)
+        elif status == 404:
+            issues.append("%s page: HTTP 404 (page not found — needs creation or URL fix)" % page_name)
+        else:
+            issues.append("%s page: HTTP %d (unexpected — investigate)" % (page_name, status))
 
     if issues:
         findings.append({
