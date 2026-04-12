@@ -24,7 +24,8 @@ AGENT_CAPACITY = {
     "price-auditor": {"max_tasks": 4, "description": "価格監査"},
     "sns-manager": {"max_tasks": 15, "description": "SNS投稿 / 動画 / 最適化 / PDCA"},
     "content-strategist": {"max_tasks": 8, "description": "記事企画 / 内部リンク / WP"},
-    "competitive-intelligence": {"max_tasks": 5, "description": "競合分析 / バズ調査"},
+    "competitive-intelligence": {"max_tasks": 5, "description": "競合調査 / 市場リサーチ"},
+    "creative-quality-auditor": {"max_tasks": 8, "description": "投稿前品質比較 / 比較スコア管理"},
     "blog-analyst": {"max_tasks": 10, "description": "ブログ分析 / PDCA / 内部リンク"},
     "project-orchestrator": {"max_tasks": 8, "description": "統括 / タスク追跡"},
 }

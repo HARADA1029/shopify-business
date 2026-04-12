@@ -264,7 +264,7 @@ def compare_competitor_design():
 
     if not competitor_features:
         findings.append({
-            "type": "info", "agent": "competitive-intelligence",
+            "type": "info", "agent": "creative-quality-auditor",
             "message": "Competitor design: Unable to reach competitor sites",
         })
         return findings
@@ -300,7 +300,7 @@ def compare_competitor_design():
 
     findings.append({
         "type": "info",
-        "agent": "competitive-intelligence",
+        "agent": "creative-quality-auditor",
         "message": "Competitor design: %d sites analyzed, %d feature gaps" % (len(competitor_features), len(gap)),
         "details": details,
     })

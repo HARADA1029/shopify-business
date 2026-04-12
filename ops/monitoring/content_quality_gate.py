@@ -300,7 +300,7 @@ def audit_content_quality(wp_posts):
     severity = "action" if len(low_quality) > 3 else "suggestion" if low_quality else "info"
     findings.append({
         "type": severity,
-        "agent": "blog-analyst",
+        "agent": "creative-quality-auditor",
         "message": "Content quality: blog avg %.1f/8, %d low-quality, %d rejected (7d)" % (
             avg_score, len(low_quality), len(week_rejections) if blog_state else 0),
         "details": details,

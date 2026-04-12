@@ -247,7 +247,7 @@ def compare_product_pages(products):
             details.append("Strengths: %s" % "; ".join(strengths))
 
         findings.append({
-            "type": "action", "agent": "competitive-intelligence",
+            "type": "action", "agent": "creative-quality-auditor",
             "message": "Product page audit: %d issues found on top product" % len(issues),
             "details": details,
         })
@@ -290,12 +290,12 @@ def compare_product_pages(products):
                 diff = current_issues - prev_issues
                 if diff < 0:
                     findings.append({
-                        "type": "info", "agent": "competitive-intelligence",
+                        "type": "info", "agent": "creative-quality-auditor",
                         "message": "Product page improvement: %d issues fixed since last check" % abs(diff),
                     })
                 elif diff > 0:
                     findings.append({
-                        "type": "suggestion", "agent": "competitive-intelligence",
+                        "type": "suggestion", "agent": "creative-quality-auditor",
                         "message": "Product page regression: %d new issues since last check" % diff,
                     })
     except (json.JSONDecodeError, IOError):
