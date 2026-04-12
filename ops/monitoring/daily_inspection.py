@@ -1386,6 +1386,7 @@ from safety_audit import run_safety_audit
 from newsletter_audit import run_newsletter_audit
 from advanced_learning import run_advanced_learning
 from agent_optimization import run_agent_optimization
+from strategic_pdca import run_strategic_pdca
 from content_quality_gate import run_content_quality_audit
 from state_consistency_audit import generate_consistency_audit, filter_findings_by_ledger
 
@@ -1644,6 +1645,19 @@ def generate_markdown_report(all_findings, store_info):
         lines.append("")
         for f in consistency_findings:
             lines.append(f"### {f['message']}")
+            lines.append("")
+            for d in f.get("details", []):
+                lines.append(f"- {d}")
+            lines.append("")
+
+    # 🎯 戦略PDCA
+    strategic = [f for f in all_findings if "Strategic PDCA" in f.get("message", "")]
+    if strategic:
+        lines.append("## 🎯 戦略PDCA（外部リサーチ→自社比較→改善）")
+        lines.append("")
+        for f in strategic:
+            icon = {"action": "🔴", "info": "ℹ️"}.get(f["type"], "📋")
+            lines.append(f"### {icon} {f['message']}")
             lines.append("")
             for d in f.get("details", []):
                 lines.append(f"- {d}")
@@ -2113,6 +2127,9 @@ def main():
 
     print("[INFO] コンテンツ品質監査...")
     all_findings.extend(run_content_quality_audit(wp_posts_data))
+
+    print("[INFO] 戦略PDCA...")
+    all_findings.extend(run_strategic_pdca(products, wp_posts_data))
 
     print("[INFO] エージェント最適化...")
     all_findings.extend(run_agent_optimization(all_findings))
